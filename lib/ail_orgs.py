@@ -1,0 +1,670 @@
+#!/usr/bin/env python3
+# -*-coding:UTF-8 -*
+
+import os
+import sys
+import pycountry
+
+from datetime import datetime
+
+sys.path.append(os.environ['AIL_BIN'])
+##################################
+# Import Project packages
+##################################
+from lib import ail_logger
+from lib.ail_core import is_valid_uuid_v4, generate_uuid
+from lib.ConfigLoader import ConfigLoader
+
+
+# LOGS
+
+access_logger = ail_logger.get_access_config()
+
+# Config
+config_loader = ConfigLoader()
+r_serv_db = config_loader.get_db_conn("Kvrocks_DB")
+r_data = config_loader.get_db_conn("Kvrocks_DB")  # TODO MOVE DEFAULT DB
+# r_cache = config_loader.get_redis_conn("Redis_Cache")
+
+config_loader = None
+
+IS_PYCOUNTRY_PATCHED = False
+
+def _patch_pycountry():
+    pycountry.countries.remove_entry(alpha_2="TW")
+    pycountry.countries.add_entry(alpha_2="XK", alpha_3="XXK", name="Kosovo", numeric="926", flag="🇽🇰")
+    pycountry.countries.add_entry(alpha_2="TW", alpha_3="TWN", name="Taiwan", numeric="158", flag="🇹🇼")
+    global IS_PYCOUNTRY_PATCHED
+    IS_PYCOUNTRY_PATCHED = True
+
+
+SPECIAL_NATIONALITIES = {
+    'Europe': {
+        'name': 'Europe',
+        'flag': '🇪🇺'
+    },
+    'International': {
+        'name': 'International',
+        'flag': '🌍'
+    }
+}
+
+
+def _country_code_to_flag(country_code):
+    if not country_code or len(country_code) != 2:
+        return None
+    code = country_code.upper()
+    if not code.isalpha():
+        return None
+    return ''.join(chr(127397 + ord(char)) for char in code)
+
+def normalize_nationality(nationality):
+    if nationality is None:
+        return None
+    nationality = nationality.strip()
+    if not nationality:
+        return ''
+    if nationality in SPECIAL_NATIONALITIES:
+        return SPECIAL_NATIONALITIES[nationality]['name']
+
+    if not IS_PYCOUNTRY_PATCHED:
+        _patch_pycountry()
+
+    country = pycountry.countries.get(name=nationality)
+    if country:
+        return country.name
+    else:
+        return None
+
+
+def format_nationality(nationality):
+    if nationality is None:
+        return None
+    nationality = nationality.strip()
+    if not nationality:
+        return None
+
+    if nationality in SPECIAL_NATIONALITIES:
+        special = SPECIAL_NATIONALITIES[nationality]
+        if special['flag']:
+            return f"{special['flag']} {special['name']}"
+        return special['name']
+
+    if not IS_PYCOUNTRY_PATCHED:
+        _patch_pycountry()
+
+    country = pycountry.countries.get(name=nationality)
+    if country:
+        country_name = country.name
+        country_flag = getattr(country, 'flag', None) or _country_code_to_flag(country.alpha_2)
+        if country_flag:
+            return f"{country_flag} {country_name}"
+        return country_name
+    return nationality
+
+
+def get_nationality_selector():
+    options = []
+    for key, special in SPECIAL_NATIONALITIES.items():
+        label = special['name']
+        if special['flag']:
+            label = f"{special['flag']} {label}"
+        options.append({'value': key, 'name': special['name'], 'label': label})
+
+    if not IS_PYCOUNTRY_PATCHED:
+        _patch_pycountry()
+
+    countries = sorted(pycountry.countries, key=lambda country: country.name)
+    for country in countries:
+        flag = getattr(country, 'flag', None) or _country_code_to_flag(country.alpha_2)
+        label = f"{flag} {country.name}" if flag else country.name
+        options.append({'value': country.name, 'name': country.name, 'label': label})
+    return options
+
+# #### PART OF ORGANISATION ####
+# from abc import ABC, abstractmethod
+#
+# class AbstractObject(ABC):
+#
+#     @abstractmethod
+#     def get_org(self):
+#         pass
+#
+#
+#     ## LEVEL ##
+#
+#     @abstractmethod
+#     def get_level(self):
+#         pass
+#
+#     @abstractmethod
+#     def set_level(self):
+#         pass
+#
+#     @abstractmethod
+#     def reset_level(self):
+#         pass
+
+#### ORGANISATIONS ####
+
+# TODO EDIT
+
+# TODO DELETE CHECK
+# TODO DELETE OBJS
+
+# TODO ORG View
+
+# TODO TAGS
+# TODO TAGS USERS ????
+
+# TODO Check if ORG name is UNIQUE
+
+def get_orgs():
+    return r_serv_db.smembers(f'ail:orgs')
+
+def get_nb_orgs():
+    return r_serv_db.scard('ail:orgs')
+
+def get_nb_active_orgs():
+    nb = 0
+    for org_id in get_orgs():
+        org = Organisation(org_id)
+        if org.get_nb_users() > 0:
+            nb += 1
+    return nb
+
+def is_user_in_org(org_uuid, user_id):
+    return r_serv_db.sadd(f'ail:org:{org_uuid}:users', user_id)
+
+def get_orgs_selector():
+    orgs = []
+    for org_uuid in get_orgs():
+        org = Organisation(org_uuid)
+        name = org.get_name()
+        orgs.append(f'{org_uuid}: {name}')
+    return orgs
+
+def create_default_org():
+    # org = Organisation(generate_uuid())
+    name = 'Default AIL Organisation'
+    description = 'Default AIL Organisation'
+    creator = 'admin@admin.test'
+    return create_org(creator, name, description)
+
+def get_users():
+    users = []
+    for org_uuid in get_orgs():
+        org = Organisation(org_uuid)
+        users.extend(org.get_users())
+    return set(users)
+
+def get_nb_regions():
+    regions = set()
+    for org_uuid in get_orgs():
+        org = Organisation(org_uuid)
+        region = org.get_nationality()
+        if region:
+            regions.add(region)
+    return len(regions)
+
+#### ORGANISATION ####
+
+class Organisation:
+
+    def __init__(self, org_uuid):
+        self.uuid = org_uuid
+
+    def exists(self):
+        return r_serv_db.exists(f'ail:org:{self.uuid}')
+
+    def _get_field(self, field):
+        return r_serv_db.hget(f'ail:org:{self.uuid}', field)
+
+    def _set_field(self, field, value):
+        r_serv_db.hset(f'ail:org:{self.uuid}', field, value)
+
+    def get_uuid(self):
+        return self.uuid
+
+    def get_date_created(self):
+        return self._get_field('date_created')
+
+    def get_date_modified(self):
+        return self._get_field('date_modified')
+
+    def update_last_modified(self):
+        current = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        self._set_field('date_modified', current)
+
+    def get_description(self):
+        return self._get_field('description')
+
+    def set_description(self, description):
+        return self._set_field('description', description)
+
+    def get_name(self):
+        return self._get_field('name')
+
+    def set_name(self, name):
+        self._set_field('name', name)
+
+    def get_nationality(self):
+        return self._get_field('nationality')
+
+    def set_nationality(self, nationality):
+        self._set_field('nationality', nationality)
+
+    def get_creator(self):
+        return self._get_field('creator')
+
+    def get_org_type(self):
+        return self._get_field('type')
+
+    def set_org_type(self, org_type):
+        self._set_field('type', org_type)
+
+    def get_sector(self):
+        return self._get_field('sector')
+
+    def set_sector(self, sector):
+        return self._set_field('sector', sector)
+
+    def get_tags(self):
+        return r_serv_db.smembers(f'ail:org:{self.uuid}:tags')
+
+    def get_logo(self): # TODO LATER
+        pass
+
+    def get_users(self):
+        return r_serv_db.smembers(f'ail:org:{self.uuid}:users')
+
+    def get_nb_users(self):
+        return r_serv_db.scard(f'ail:org:{self.uuid}:users')
+
+    def get_meta(self, options=set()):
+        meta = {'uuid': self.uuid}
+        if 'name' in options:
+            meta['name'] = self.get_name()
+        if 'description' in options:
+            meta['description'] = self.get_description()
+        if 'creator' in options:
+            meta['creator'] = self._get_field('creator')
+        if 'date_created' in options:
+            meta['date_created'] = self._get_field('date_created')
+        if 'last_edit' in options:
+            meta['last_edit'] = self._get_field('date_modified')
+        if 'nationality' in options:
+            meta['nationality'] = self.get_nationality()
+            meta['nationality_display'] = format_nationality(meta['nationality'])
+        if 'users' in options:
+            meta['users'] = self.get_users()
+        if 'nb_users' in options:
+            if 'users' in meta:
+                meta['nb_users'] = len(meta['users'])
+            else:
+                meta['nb_users'] = self.get_nb_users()
+        if 'org_type' in options:
+            meta['org_type'] = self.get_org_type()
+        if 'sector' in options:
+            meta['sector'] = self.get_sector()
+        if 'tags' in options:
+            meta['tags'] = self.get_tags()
+        return meta
+
+    def is_user(self, user_id):
+        return r_serv_db.sismember(f'ail:org:{self.uuid}:users', user_id)
+
+    def add_user(self, user_id):
+        r_serv_db.sadd(f'ail:org:{self.uuid}:users', user_id)
+        r_serv_db.hset(f'ail:user:metadata:{user_id}', 'org', self.uuid)
+        self.update_last_modified()
+
+    def remove_user(self, user_id):
+        r_serv_db.srem(f'ail:org:{self.uuid}:users', user_id)
+        r_serv_db.hdel(f'ail:user:metadata:{user_id}', 'org')
+        self.update_last_modified()
+
+    def remove_users(self):
+        for user_id in self.get_users():
+            self.remove_user(user_id)
+        self.update_last_modified()
+
+    def create(self, creator, name, description=None, nationality=None, sector=None, org_type=None, logo=None):
+        r_serv_db.sadd(f'ail:orgs', self.uuid)
+
+        self._set_field('creator', creator)
+        self.set_name(name)
+        self.set_description(description)
+        if nationality:
+            self._set_field('nationality', nationality)
+        if sector:
+            self._set_field('sector', sector)
+        if org_type:
+            self._set_field('type', org_type)
+        # if logo:
+
+        current = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        self._set_field('date_created', current)
+        self._set_field('date_modified', current)
+
+    def edit(self, name=None, description=None, nationality=None, sector=None, org_type=None, logo=None, tags=[]):
+        if name is not None:
+            self.set_name(name)
+        if description is not None:
+            if description:
+                self.set_description(description)
+            else:
+                r_serv_db.hdel(f'ail:org:{self.uuid}', 'description')
+        if nationality is not None:
+            if nationality:
+                self.set_nationality(nationality)
+            else:
+                r_serv_db.hdel(f'ail:org:{self.uuid}', 'nationality')
+        if sector is not None:
+            if sector:
+                self.set_sector(sector)
+            else:
+                r_serv_db.hdel(f'ail:org:{self.uuid}', 'sector')
+        if org_type is not None:
+            if org_type:
+                self.set_org_type(org_type)
+            else:
+                r_serv_db.hdel(f'ail:org:{self.uuid}', 'type')
+        # if tags:
+        #     nb_tags = r_serv_db.scard(f'ail:org:{self.uuid}:tags')
+        #     if nb_tags > 0 or tags:
+        #         r_serv_db.delete(f'ail:org:{self.uuid}:tags')
+        #         for tag in tags:
+        #             r_serv_db.sadd(f'ail:org:{self.uuid}:tags', tag)
+        self.update_last_modified()
+
+    def delete(self):  # TODO CHANGE ACL ASSOCIATED WITH ORGS -> Tracker, Investigation, objects, ...
+        self.remove_users()
+        r_serv_db.delete(f'ail:org:{self.uuid}:tags')
+        r_serv_db.delete(f'ail:org:{self.uuid}')
+        r_serv_db.srem(f'ail:orgs', self.uuid)
+
+
+def exists_org(org_uuid):
+    return r_serv_db.exists(f'ail:org:{org_uuid}')
+
+def create_org(creator, name, description, uuid=None, nationality=None, sector=None, org_type=None, logo=None):
+    if uuid is None:
+        uuid = generate_uuid()
+    else:
+        if exists_org(uuid):
+            raise Exception('Organisation already exists')  # TODO CUSTOM ERROR
+
+    org = Organisation(uuid)
+    org.create(creator, name, description, nationality=nationality, sector=sector, org_type=org_type, logo=logo)
+    return org
+
+def get_org_objs_by_type(org_uuid, obj_type):
+    return r_serv_db.smembers(f'org:{org_uuid}:{obj_type}')
+
+def add_obj_to_org(org_uuid, obj_type, obj_gid):  # ADD set UUID -> object types ???
+    r_serv_db.sadd(f'org:{org_uuid}:{obj_type}', obj_gid)
+
+def remove_obj_to_org(org_uuid, obj_type, obj_gid):
+    r_serv_db.srem(f'org:{org_uuid}:{obj_type}', obj_gid)
+
+def _sanitize_org_metadata_field(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = value.strip()
+        if not value:
+            return None
+    return value
+
+def _extract_misp_organization(record):
+    if not isinstance(record, dict):
+        return {}
+    organisation = record.get('Organisation')
+    if isinstance(organisation, dict):
+        return organisation
+    return record
+
+def _can_update_org_field(current_value, new_value, update_policy):
+    if new_value is None:
+        return False
+    if update_policy == 'if_empty':
+        return current_value in [None, '']
+    # default: overwrite
+    return True
+
+def sync_remote_misp_organizations_metadata(url, key, ssl=False, update_policy='if_empty'):
+    report = {
+        'status': 'success',
+        'retrieved': 0,
+        'matched': 0,
+        'updated': 0,
+        'skipped': 0,
+        'failed': 0,
+        'errors': []
+    }
+
+    if update_policy not in {'overwrite', 'if_empty'}:
+        return {
+            'status': 'error',
+            'reason': f'Invalid update policy: {update_policy}',
+            'retrieved': 0,
+            'matched': 0,
+            'updated': 0,
+            'skipped': 0,
+            'failed': 0,
+            'errors': []
+        }
+
+    try:
+        from pymisp import PyMISP, PyMISPError
+    except Exception as e:
+        report['status'] = 'error'
+        report['reason'] = f'Unable to import pymisp: {str(e)}'
+        return report
+
+    try:
+        misp = PyMISP(url, key, ssl)
+    except (PyMISPError, Exception) as e:
+        report['status'] = 'error'
+        report['reason'] = f'Unable to connect to remote MISP: {str(e)}'
+        return report
+
+    try:
+        organizations = misp.organisations(pythonify=False)
+    except AttributeError:
+        organizations = misp.search(controller='organisations', pythonify=False)
+    except (PyMISPError, Exception) as e:
+        report['status'] = 'error'
+        report['reason'] = f'Unable to retrieve organizations from remote MISP: {str(e)}'
+        return report
+
+    if isinstance(organizations, dict):
+        organizations = organizations.get('response', [])
+
+    if not isinstance(organizations, list):
+        organizations = []
+
+    report['retrieved'] = len(organizations)
+    processed_uuids = set()
+
+    for entry in organizations:
+        try:
+            organization = _extract_misp_organization(entry)
+            org_uuid = organization.get('uuid')
+            if not org_uuid:
+                report['skipped'] += 1
+                report['errors'].append({'uuid': None, 'reason': 'Missing UUID in remote organization'})
+                continue
+
+            if org_uuid in processed_uuids:
+                report['skipped'] += 1
+                continue
+            processed_uuids.add(org_uuid)
+
+            if not exists_org(org_uuid):
+                report['skipped'] += 1
+                continue
+
+            report['matched'] += 1
+            org = Organisation(org_uuid)
+
+            remote_name = _sanitize_org_metadata_field(organization.get('name'))
+            remote_description = _sanitize_org_metadata_field(organization.get('description'))
+            remote_nationality = _sanitize_org_metadata_field(organization.get('nationality'))
+            if remote_nationality is not None:
+                remote_nationality = normalize_nationality(remote_nationality)
+            remote_sector = _sanitize_org_metadata_field(organization.get('sector'))
+            remote_type = _sanitize_org_metadata_field(organization.get('type'))
+
+            updates = {}
+            if _can_update_org_field(org.get_name(), remote_name, update_policy):
+                updates['name'] = remote_name
+            if _can_update_org_field(org.get_description(), remote_description, update_policy):
+                updates['description'] = remote_description
+            if _can_update_org_field(org.get_nationality(), remote_nationality, update_policy):
+                updates['nationality'] = remote_nationality
+            if _can_update_org_field(org.get_sector(), remote_sector, update_policy):
+                updates['sector'] = remote_sector
+            if _can_update_org_field(org.get_org_type(), remote_type, update_policy):
+                updates['org_type'] = remote_type
+
+            if updates:
+                org.edit(**updates)
+                report['updated'] += 1
+            else:
+                report['skipped'] += 1
+
+        except Exception as e:
+            report['failed'] += 1
+            report['errors'].append({'uuid': organization.get('uuid') if isinstance(organization, dict) else None, 'reason': str(e)})
+            continue
+
+    return report
+
+## --ORGANISATION-- ##
+
+def check_access_acl(obj, user_org, is_admin=False):
+    if is_admin:
+        return True
+    return obj.get_org() == user_org
+
+# view
+# edit
+# delete -> org_admin or admin
+def check_obj_access_acl(obj, user_org, user_id, user_role, action):
+    if user_role == 'admin':
+        return True
+
+    level = obj.get_level()
+    # User
+    if level == 0:
+        return user_id == obj.get_user()
+    # Global
+    elif level == 1:
+        if action == 'view':
+            return True
+        # edit + delete
+        else:
+            owner = obj.get_creator()
+            if user_id == owner:
+                return True
+            else:
+                return False
+    # Organization
+    elif level == 2:
+        if action == 'view':
+            return obj.get_org() == user_org
+        elif action == 'edit':
+            return obj.get_org() == user_org
+        elif action == 'delete':
+            owner = obj.get_creator()
+            if user_id == owner:
+                return True
+            else:
+                return False
+    return False
+
+#### API ####
+
+def api_get_orgs_meta():
+    meta = {'orgs': [], 'active': get_nb_active_orgs()}
+    options = {'date_created', 'description', 'name', 'nb_users', 'nationality'}
+    for org_uuid in get_orgs():
+        org = Organisation(org_uuid)
+        meta['orgs'].append(org.get_meta(options=options))
+    return meta
+
+def api_get_org_meta(org_uuid):
+    if not is_valid_uuid_v4(org_uuid):
+        return {'status': 'error', 'reason': 'Invalid UUID'}, 400
+    if not exists_org(org_uuid):
+        return {'status': 'error', 'reason': 'Unknown org'}, 404
+    org = Organisation(org_uuid)
+    meta = org.get_meta(options={'date_created', 'creator', 'description', 'last_edit', 'name', 'nationality', 'nb_users', 'org_type', 'sector', 'users'})
+    return meta, 200
+
+def api_create_org(creator, org_uuid, name, ip_address, user_agent, description=None, nationality=None, sector=None, org_type=None):
+    if not is_valid_uuid_v4(org_uuid):
+        return {'status': 'error', 'reason': 'Invalid UUID'}, 400
+    if exists_org(org_uuid):
+        return {'status': 'error', 'reason': 'Org already exists'}, 400
+
+    if description is not None:
+        description = description.strip()
+    if nationality is not None:
+        nationality = normalize_nationality(nationality)
+    if sector is not None:
+        sector = sector.strip()
+    if org_type is not None:
+        org_type = org_type.strip()
+
+    org = Organisation(org_uuid)
+    org.create(creator, name, description=description, nationality=nationality, sector=sector, org_type=org_type)
+    access_logger.info(f'Created org {org_uuid}', extra={'user_id': creator, 'ip_address': ip_address, 'user_agent': user_agent})
+    return org.get_uuid(), 200
+
+def api_edit_org(data, admin_id, ip_address, user_agent):
+    org_uuid = data.get('uuid')
+    if not exists_org(org_uuid):
+        return {'status': 'error', 'reason': 'Org not found'}, 404
+    name = data.get('name')
+    if name is None:
+        return {'status': 'error', 'reason': 'Invalid org name'}, 400
+    name = name.strip()
+    if not name:
+        return {'status': 'error', 'reason': 'Invalid org name'}, 400
+
+    description = data.get('description')
+    if description is not None:
+        description = description.strip()
+    nationality = data.get('nationality')
+    if nationality is not None:
+        nationality = normalize_nationality(nationality)
+    sector = data.get('sector')
+    if sector is not None:
+        sector = sector.strip()
+    org_type = data.get('org_type')
+    if org_type is not None:
+        org_type = org_type.strip()
+    org = Organisation(org_uuid)
+    org.edit(name=name, description=description, nationality=nationality, sector=sector, org_type=org_type)
+    access_logger.warning(f'Edited org {org_uuid}', extra={'user_id': admin_id, 'ip_address': ip_address, 'user_agent': user_agent})
+    return org.get_uuid(), 200
+
+
+def api_delete_org(org_uuid, admin_id, ip_address, user_agent):  # TODO check if nothing is linked to this org
+    if not exists_org(org_uuid):
+        return {'status': 'error', 'reason': 'Org not found'}, 404
+    access_logger.warning(f'Deleted org {org_uuid}', extra={'user_id': admin_id, 'ip_address': ip_address, 'user_agent': user_agent})
+    org = Organisation(org_uuid)
+    org.delete()
+    return org_uuid, 200
+
+
+# if __name__ == '__main__':
+#     user_id = 'admin@admin.test'
+#     instance_name = 'AIL TEST'
+#     delete_user_otp(user_id)
+#     # q = get_user_otp_qr_code(user_id, instance_name)
+#     # print(q)
