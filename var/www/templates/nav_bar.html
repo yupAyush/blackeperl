@@ -12,6 +12,7 @@
   </div>
   <ul class="ail-navbar-links">
     <li><a href="/"><i class="fas fa-home"></i> Home</a></li>
+    <li><a href="{{ url_for('deanonymization.dashboard') }}" class="text-warning"><i class="fas fa-user-secret"></i> De-anonymization</a></li>
     <li><a href="{{ url_for('ui_submit.PasteSubmit_page') }}"><i class="fas fa-upload"></i> Submit</a></li>
     <li><a href="{{ url_for('tags_ui.tags_taxonomies') }}"><i class="fas fa-tags"></i> Tags</a></li>
     <li><a href="{{ url_for('hunters.trackers_dashboard') }}"><i class="fas fa-crosshairs"></i> Leaks Hunter</a></li>

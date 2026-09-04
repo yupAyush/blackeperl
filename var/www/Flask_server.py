@@ -72,6 +72,7 @@ from blueprints.objects_author import objects_author
 from blueprints.objects_ssh import objects_ssh
 from blueprints.objects_ip import objects_ip
 from blueprints.api_rest import api_rest
+from blueprints.deanonymization import deanonymization
 
 
 Flask_dir = os.environ['AIL_FLASK']
@@ -118,7 +119,7 @@ for handler in flask_logger.handlers:
     handler.addFilter(ignore_filter)
 
 
-# =========  TLS  =========#
+# =========  TLS  rerh =========#
 
 ssl_context = None
 self_signed_certfile = os.path.join(Flask_dir, 'server.crt')
@@ -174,6 +175,7 @@ app.register_blueprint(objects_ssh, url_prefix=baseUrl)
 app.register_blueprint(objects_ip, url_prefix=baseUrl)
 app.register_blueprint(search_b, url_prefix=baseUrl)
 app.register_blueprint(api_rest, url_prefix=baseUrl)
+app.register_blueprint(deanonymization, url_prefix=baseUrl)
 
 # =========       =========#
 

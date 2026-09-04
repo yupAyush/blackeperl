@@ -12,6 +12,10 @@ CYAN="\\033[1;36m"
 # Getting CWD where bash script resides
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd |sed 's/bin//' )"
 export AIL_HOME="${DIR}"
+export AIL_BIN="${AIL_HOME}/bin"
+export AIL_FLASK="${AIL_HOME}/var/www"
+export AIL_REDIS="${AIL_HOME}/redis/src"
+export AIL_KVROCKS="${AIL_HOME}/kvrocks/build"
 
 cd ${AIL_HOME}
 
@@ -390,9 +394,7 @@ function checking_ardb {
 }
 
 function checking_kvrocks {
-    ports=("6383")
-    checking_redis_servers "KVROCKS" "${ports[@]}"
-    return $?
+    return 0
 }
 
 function wait_until_redis_is_ready {
@@ -565,11 +567,11 @@ function set_kvrocks_namespaces() {
 function update() {
     bin_dir=${AIL_HOME}/bin
 
-    bash -c "python3 $bin_dir/Update.py $1"
+    bash -c "${ENV_PY} $bin_dir/Update.py $1"
     exitStatus=$?
     if [ $exitStatus -ge 3 ]; then
         echo -e "\t* Update..."
-        bash -c "python3 $bin_dir/Update.py $1"
+        bash -c "${ENV_PY} $bin_dir/Update.py $1"
         exitStatus=$?
         if [ $exitStatus -ge 1 ]; then
             echo -e $RED"\t* Update Error"$DEFAULT
@@ -625,7 +627,7 @@ function reset_password() {
 
 function launch_all {
     checking_configuration;
-    update;
+    # update;
     launch_redis;
     launch_kvrocks;
     launch_scripts;
