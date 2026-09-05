@@ -1,0 +1,51 @@
+<div class="modal fade" id="update_modal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title" id="exampleModalLabel">Update Note: <b>v5.0 - Kvrocks Migration</b></h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div>
+                    In order to improve the performance and reliability of Null Anonymity, we have migrated our database from ARDB to <a href="https://github.com/apache/incubator-kvrocks">Kvrocks</a>,
+                    and the Null Anonymity crawler has been upgraded to <a href="https://github.com/ail-project/lacus">Lacus</a>.
+                </div>
+                <hr>
+
+                <div class="alert alert-danger text-danger" role="alert">Kvrocks DB Migration.</div>
+                <div>
+                    As a result of this change, it is necessary to manually update your Null Anonymity installation.
+                    Instructions on how to perform the update can be found <a href="https://github.com/ail-project/ail-framework/blob/master/HOWTO.md#kvrocks-migration">here</a>.
+                </div>
+
+                <br><br>
+
+                <div class="alert alert-danger text-danger" role="alert">Null Anonymity Crawlers Migration: Lacus</div>
+                If you wish to crawl Tor or website domains, you need to install Lacus.
+
+                <div class="d-flex justify-content-center">
+                    <a class="btn btn-info" href="https://github.com/ail-project/lacus" role="button">
+                        <i class="fab fa-github"></i> Install and Configure Lacus
+                    </a>
+                </div>
+                How to configure the Null Anonymity crawler:
+                <a href="https://github.com/ail-project/ail-framework/blob/master/HOWTO.md#crawler">HOWTO</a>
+                <br><br><br>
+                If you encounter any difficulties, you can open an <a href="https://github.com/ail-project/ail-framework/issues">issue</a>
+
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+<script>
+    $(window).on('load', function() {
+        $('#update_modal').modal('show');
+    });
+</script>

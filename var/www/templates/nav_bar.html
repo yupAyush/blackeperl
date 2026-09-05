@@ -1,0 +1,96 @@
+<link href="{{ url_for('static', filename='css/modern-ui.css') }}" rel="stylesheet">
+
+{% set ep = request.endpoint or '' %}
+
+<div class="na-classification">
+  <span class="na-class-mark">Restricted</span>
+  <span>Authorised investigative use only. Activity on this console is attributed to your account.</span>
+  <div class="na-class-right">
+    {% if current_user.is_authenticated %}
+      <span class="mono">{{ current_user.get_user_id() }}</span>
+    {% endif %}
+    <span class="mono" id="na-clock"></span>
+  </div>
+</div>
+
+<aside class="na-rail">
+  <a class="na-seal" href="{{ url_for('dashboard.index') }}">
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="23" height="23" stroke="#7B828A"/>
+      <rect x="6.5" y="6.5" width="15" height="15" stroke="#B8BCC0"/>
+      <path d="M14 9.6a2.7 2.7 0 0 1 2.7 2.7v1.1h1v5.2h-7.4v-5.2h1v-1.1A2.7 2.7 0 0 1 14 9.6zm0 1.5a1.2 1.2 0 0 0-1.2 1.2v1.1h2.4v-1.1a1.2 1.2 0 0 0-1.2-1.2z" fill="#565C63"/>
+    </svg>
+    <div>
+      <div class="na-seal-name">Null Anonymity</div>
+      <div class="na-seal-org">Cyber Forensics Wing</div>
+    </div>
+  </a>
+
+  <nav class="na-nav" aria-label="Main navigation">
+    <div class="na-nav-group">Casework</div>
+    <a class="na-nav-item {% if ep.startswith('dashboard.index') %}active{% endif %}" id="page-Dashboard" href="{{ url_for('dashboard.index') }}">
+      <i class="fas fa-columns"></i> Overview
+    </a>
+    <a class="na-nav-item {% if ep.startswith('deanonymization.') %}active{% endif %}" id="page-deanonymization" href="{{ url_for('deanonymization.dashboard') }}">
+      <i class="fas fa-user-secret"></i> De-anonymization
+    </a>
+    <a class="na-nav-item {% if ep.startswith('crawler_splash.') %}active{% endif %}" id="page-Crawler" href="{{ url_for('crawler_splash.crawlers_dashboard') }}">
+      <i class="fas fa-spider"></i> Collection
+    </a>
+    <a class="na-nav-item {% if ep.startswith('dashboard.objects_dashboard') or ep.startswith('objects') %}active{% endif %}" id="page-Decoded" href="{{ url_for('dashboard.objects_dashboard') }}">
+      <i class="fas fa-cube"></i> Objects
+    </a>
+    <a class="na-nav-item {% if ep.startswith('investigations_b.') %}active{% endif %}" id="page-investigation" href="{{ url_for('investigations_b.investigations_dashboard') }}">
+      <i class="fas fa-microscope"></i> Investigations
+    </a>
+
+    <div class="na-nav-group">Analysis</div>
+    <a class="na-nav-item {% if ep.startswith('search_b.') %}active{% endif %}" id="page-search" href="{{ url_for('search_b.search_dashboard') }}">
+      <i class="fas fa-search"></i> Search
+    </a>
+    <a class="na-nav-item {% if ep.startswith('hunters.') %}active{% endif %}" id="page-Tracker" href="{{ url_for('hunters.trackers_dashboard') }}">
+      <i class="fas fa-crosshairs"></i> Hunting
+    </a>
+    <a class="na-nav-item {% if ep.startswith('tags_ui.') %}active{% endif %}" id="navbar-tags" href="{{ url_for('tags_ui.tags_search_items') }}">
+      <i class="fas fa-tag"></i> Tags
+    </a>
+    <a class="na-nav-item {% if ep.startswith('PasteSubmit.') %}active{% endif %}" id="page-items-submit" href="{{ url_for('PasteSubmit.PasteSubmit_page') }}">
+      <i class="fas fa-external-link-alt"></i> Submit
+    </a>
+
+    <div class="na-nav-group">System</div>
+    <a class="na-nav-item {% if ep.startswith('settings_b.') %}active{% endif %}" id="page-options" href="{{ url_for('settings_b.settings_page') }}">
+      <i class="fas fa-cog"></i> Settings
+    </a>
+  </nav>
+
+  <div class="na-officer">
+    {% if current_user.is_authenticated %}
+      {% set na_uid = current_user.get_user_id() %}
+      <div class="na-officer-avatar">{{ na_uid[:2] | upper }}</div>
+      <div style="min-width:0">
+        <div class="na-officer-name">{{ na_uid }}</div>
+        <div class="na-officer-role">{{ current_user.get_role() | replace('_', ' ') | title }}</div>
+      </div>
+      <a href="{{ url_for('root.logout') }}" id="page-logout" title="Log out" aria-label="Log out">
+        <i class="fas fa-sign-out-alt"></i>
+      </a>
+    {% endif %}
+  </div>
+</aside>
+
+<script>
+  document.body.classList.add('na-shell');
+  (function () {
+    var el = document.getElementById('na-clock');
+    if (!el) { return; }
+    function tick() {
+      el.textContent = new Date().toLocaleString(undefined, {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      });
+    }
+    tick();
+    setInterval(tick, 30000);
+  })();
+</script>

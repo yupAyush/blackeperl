@@ -1,0 +1,140 @@
+{% extends 'deanonymization/base.html' %}
+{% block title_tag %}<title>Relationship Graph: {{ actor.primary_alias }} — Null Anonymity</title>{% endblock %}
+
+{% block extra_head %}
+<style>
+  .graph-canvas { height: calc(100vh - 130px); background: #FFFFFF; position: relative; }
+  .node-panel {
+    position:absolute; right:16px; top:16px; width:300px;
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:2px; padding:14px; z-index:100;
+    backdrop-filter:blur(12px);
+    box-shadow:none;
+  }
+  .legend-panel {
+    position:absolute; left:16px; bottom:16px;
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:2px; padding:10px 14px; z-index:100; font-size:11px;
+  }
+  .ld { display:inline-flex; align-items:center; margin-right:12px; margin-bottom:4px; gap:5px; color:var(--text-secondary); }
+  .ld-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+</style>
+{% endblock %}
+
+{% block tab_graph %}active{% endblock %}
+{% block page_content %}
+<!-- Sub-header -->
+<div style="background:var(--panel); border-bottom:1px solid var(--line); padding:12px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; position:sticky; top:60px; z-index:100;">
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+    <h5 style="margin:0; font-weight:700; color:var(--text-primary);">
+      <i class="fas fa-project-diagram mr-2" style="color:#565C63;"></i>Relationship Graph
+    </h5>
+    <div class="bp-dropdown">
+      <button class="btn-bp btn-bp-ghost btn-bp-sm" onclick="this.closest('.bp-dropdown').classList.toggle('open')">
+        <i class="fas fa-user-secret text-yellow"></i>
+        <strong style="color:#1A1D21;">{{ actor.primary_alias }}</strong>
+        <i class="fas fa-chevron-down" style="font-size:9px;"></i>
+      </button>
+      <div class="bp-dropdown-menu">
+        {% for a in all_actors %}
+        <a href="{{ url_for('deanonymization.relationship_graph', actor_id=a.actor_id) }}" class="bp-dropdown-item">
+          <i class="fas fa-user-secret text-dimmer"></i> {{ a.primary_alias }}
+          <span class="bp-badge neutral ml-auto" style="font-size:10px;">{{ a.get_risk_level() }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  <div style="display:flex; gap:6px;">
+    <a href="{{ url_for('deanonymization.actor_profile', actor_id=actor.actor_id) }}" class="btn-bp btn-bp-ghost btn-bp-sm">
+      <i class="fas fa-id-card"></i> Dossier
+    </a>
+    <a href="{{ url_for('deanonymization.dashboard') }}" class="btn-bp btn-bp-ghost btn-bp-sm">
+      <i class="fas fa-arrow-left"></i>
+    </a>
+  </div>
+</div>
+
+<!-- Graph Canvas -->
+<div class="graph-canvas">
+  <div id="networkGraph" style="width:100%; height:100%;"></div>
+
+  <!-- Entity Inspector Panel -->
+  <div class="node-panel" id="nodePanel">
+    <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-bottom:8px;">
+      <i class="fas fa-info-circle mr-1"></i>Entity Inspector
+    </div>
+    <div id="nodePanelContent" style="font-size:12px; color:var(--text-secondary); line-height:1.6;">
+      Click any node in the graph to inspect its cryptographic attributes, wallet addresses, or origin IP attribution details.
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend-panel">
+    <div style="display:flex; flex-wrap:wrap; max-width:580px;">
+      <span class="ld"><span class="ld-dot" style="background:#1A1D21;"></span>Threat Actor</span>
+      <span class="ld"><span class="ld-dot" style="background:#2F5D8A;"></span>Handle/Alias</span>
+      <span class="ld"><span class="ld-dot" style="background:#2C6049;"></span>PGP Key</span>
+      <span class="ld"><span class="ld-dot" style="background:#B08A2E;"></span>Crypto Wallet</span>
+      <span class="ld"><span class="ld-dot" style="background:#6B4C8A;"></span>Marketplace</span>
+      <span class="ld"><span class="ld-dot" style="background:#A03A63;"></span>Tor Service</span>
+      <span class="ld"><span class="ld-dot" style="background:#9B2C22;"></span>Clearnet IP</span>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+$(document).ready(function() {
+  var el = document.getElementById('networkGraph');
+  if (!el || typeof echarts === 'undefined') return;
+
+  var c = echarts.init(el);
+  var gd = {{ graph_data|tojson }};
+
+  c.setOption({
+    backgroundColor: '#FFFFFF',
+    tooltip: {
+      formatter: function(p) { return p.data.tooltip || p.name; },
+      backgroundColor: '#FFFFFF', borderColor: '#D3D6D9', textStyle: {color:'#1A1D21', fontSize:12}
+    },
+    legend: [{
+      data: gd.categories.map(function(a){ return a.name; }),
+      textStyle:{color:'#565C63', fontSize:11}, top:12, left:16,
+      icon:'circle', itemWidth:10, itemHeight:10
+    }],
+    animationDuration: 1200,
+    animationEasingUpdate: 'quinticInOut',
+    series: [{
+      type:'graph', layout:'force', roam:true,
+      data: gd.nodes, links: gd.links, categories: gd.categories,
+      label: {
+        show:true, position:'right', formatter:'{b}',
+        color:'#1A1D21', fontSize:11, fontFamily:'IBM Plex Sans,sans-serif'
+      },
+      lineStyle:{color:'#C4C8CC', curveness:0.15, width:1.2, opacity:0.9},
+      edgeLabel:{
+        show:true, formatter:function(x){ return x.data.value || ''; },
+        fontSize:9, color:'#7B828A', fontFamily:'IBM Plex Sans,sans-serif'
+      },
+      force:{repulsion:500, gravity:0.08, edgeLength:[90,220]},
+      emphasis:{focus:'adjacency', lineStyle:{width:3}}
+    }]
+  });
+
+  c.on('click', function(p) {
+    if (p.dataType === 'node') {
+      var d = p.data;
+      document.getElementById('nodePanelContent').innerHTML =
+        '<div style="font-weight:700; color:#fbbf24; margin-bottom:6px;">' + d.name + '</div>' +
+        '<div style="color:var(--text-secondary); margin-bottom:8px;">' + (d.value || '') + '</div>' +
+        '<hr style="border:none; border-top:1px solid var(--border); margin:8px 0;">' +
+        '<div style="color:var(--text-muted);">' + (d.tooltip || '') + '</div>';
+    }
+  });
+
+  window.addEventListener('resize', function(){ c.resize(); });
+});
+</script>
+{% endblock %}

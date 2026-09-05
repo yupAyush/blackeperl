@@ -1,0 +1,54 @@
+<div id="modal_show_min_item" class="modal fade" role="dialog">
+ <div class="modal-dialog modal-lg">
+
+   <!-- Modal content-->
+   <div id="modal_show_min_item_content" class="modal-content">
+     <div id="modal_show_min_item_body" class="modal-body" max-width="850px">
+       <p>Loading item information...</p>
+       <img id="loading-gif-modal" src="{{url_for('static', filename='image/loading.gif') }}" height="26" width="26" style="margin: 4px;">
+     </div>
+     <div class="modal-footer">
+       <a id="modal_show_min_item_button_show_item" target="_blank" href=""><button type="button" class="btn btn-info">Show Item</button></a>
+       <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+     </div>
+   </div>
+ </div>
+</div>
+
+<script>
+// static data
+var can_change_modal_content = true;
+
+// Reset modal content
+$("#modal_show_min_item").on('hidden.bs.modal', function () {
+    can_change_modal_content = true;
+    $("#modal_show_min_item_body").html("<p>Loading item information...</p>");
+    var loading_gif = "<img id='loading-gif-modal' class='img-center' src=\"{{url_for('static', filename='image/loading.gif') }}\" height='26' width='26' style='margin: 4px;'>";
+    $("#modal_show_min_item_body").append(loading_gif); // Show the loading GIF
+    $("#modal_show_min_item_button_show_item").attr('href', '');
+    $("#modal_show_min_item_button_show_item").hide();
+});
+
+function get_html_and_update_modal(event, truemodal) {
+    event.preventDefault();
+
+    var modal=truemodal;
+    var url = " {{ url_for('objects_item.item_preview')  }}?id=" + modal.attr('data-path');
+    $.get(url, function (data) {
+
+        // verify that the reveived data is really the current clicked item. Otherwise, ignore it.
+            can_change_modal_content = false;
+
+            // clear data by removing html, body, head tags. prevent dark modal background stack bug.
+            var cleared_data = data.split("<body>")[1].split("</body>")[0];
+            $("#modal_show_min_item_body").html(cleared_data);
+
+            $("#modal_show_min_item_button_show_item").attr('href', '{{ url_for('objects_item.showItem')  }}?id=' + $(modal).attr('data-path'));
+            $("#modal_show_min_item_button_show_item").show('fast');
+            $("#loading-gif-modal").css("visibility", "hidden"); // Hide the loading GIF
+            // collapse decoded
+            $('#collapseDecoded').collapse('hide');
+    });
+}
+
+</script>

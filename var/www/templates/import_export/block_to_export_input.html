@@ -1,0 +1,21 @@
+<div class="input-group mb-1">
+	<select class="custom-select col-2" name="{{input_uuid}}" disabled>
+        <option selected="" value="{{ obj_type }}:{{ obj_subtype }}">
+            {% if obj_subtype %}
+                {{ obj_type }} - {{ obj_subtype }}
+            {%  else %}
+                {{ obj_type }}
+            {% endif %}
+        </option>
+	</select>
+	<input type="text" class="form-control col-8 {%if obj_error%}is-invalid{%else%}is-valid{%endif%}" name="{{input_uuid}}" value="{{obj_id}}" disabled>
+	<input class="form-control col-1" type="number" min="0" name="{{input_uuid}}" {%if obj_lvl%}value="{{obj_lvl}}"{%else%}value="0"{%endif%}>
+	<span class="btn btn-danger input-group-addon delete-field col-1" id="{{ obj_type }}:{{ obj_subtype }}:{{ obj_id }}"><i class="fas fa-trash-alt"></i></span>
+	<div class="invalid-feedback">
+		{%if obj_type=="Object type..."%}
+			&nbsp;&nbsp;&nbsp; Please select an object type.
+		{%else%}
+			&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Unknown or Invalid ID.
+		{%endif%}
+  </div>
+</div>

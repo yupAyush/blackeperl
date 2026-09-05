@@ -1,0 +1,59 @@
+# Deanonymization-Solution — based on AIL Framework
+
+# Editor / OS
+*.swp *.swo *.bak *.tmp *.orig *~ .DS_Store Thumbs.db
+.idea/ .vscode/
+
+# Python
+__pycache__/ *.pyc *.pyo .coverage htmlcov/
+.pytest_cache/ .mypy_cache/ .ruff_cache/
+
+# Virtualenvs
+.venv/ venv/ env/ AILENV/ ENV/
+
+# AIL runtime data — DO NOT COMMIT
+logs/
+var/www/submitted
+var/www/server.key
+PASTES/ CRAWLED_SCREENSHOT/ IMAGES/ FAVICONS/ FILES/ BASE64/ HASHS/
+DATA_ARDB/ DATA_KVROCKS/ redis/ ardb/ kvrocks/ faup/ tlsh/
+Blooms/ indexdir/ old/ pgpdump/ temp/
+
+# Local config + secrets (but keep .sample files)
+configs/keys/mispKEYS.py
+configs/keys/theHiveKEYS.py
+configs/keys/virusTotalKEYS.py
+configs/core.cfg
+configs/core.cfg.backup
+configs/update.cfg
+configs/d4client_passiveDNS_conf/uuid
+update/current_version
+DEFAULT_PASSWORD
+
+# Helper certs
+tools/gen_cert/rootCA.*
+tools/gen_cert/server.*
+
+# YARA custom rules (user-specific)
+bin/trackers/yara/custom-rules/*
+!bin/trackers/yara/custom-rules/test.yar
+
+# Auto-generated docs
+doc/all_modules.txt
+doc/module-data-flow.png
+doc/data-flow.png
+doc/ail_queues.dot
+doc/ail_queues.svg
+doc/statistics
+
+# Pystemon
+pystemon/archives
+
+# Deanonymization-Solution additions
+.env .env.* !.env.example
+*.pem *.key *.secret
+data/raw/ data/processed/ data/cache/
+models/checkpoints/ models/*.pt models/*.pkl
+deanon_cache/ *.parquet *.feather
+.ipynb_checkpoints/
+*.log *.log.*

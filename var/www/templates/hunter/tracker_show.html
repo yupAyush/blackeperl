@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+
+    <title>Tracker — Null Anonymity</title>
+    <link rel="icon" href="{{ url_for('static', filename='image/ail-icon.png') }}">
+
+    <!-- Core CSS -->
+    <link href="{{ url_for('static', filename='css/ail-project.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/bootstrap4.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/font-awesome.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/daterangepicker.min.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/dataTables.bootstrap.min.css') }}" rel="stylesheet">
+
+    <!-- JS -->
+    <script src="{{ url_for('static', filename='js/jquery.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/popper.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/bootstrap4.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/jquery.dataTables.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/dataTables.bootstrap.min.js') }}"></script>
+    <script language="javascript" src="{{ url_for('static', filename='js/d3.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/d3/sparklines.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/d3/graphlinesgroup.js') }}"></script>
+    <script language="javascript" src="{{ url_for('static', filename='js/moment.min.js') }}"></script>
+    <script language="javascript" src="{{ url_for('static', filename='js/jquery.daterangepicker.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/echarts.min.js')}}"></script>
+
+    <style>
+        .tracker-dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 1rem;
+        }
+
+        .tracker-meta-section {
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 0.5rem;
+            padding: 0.9rem 1rem;
+            background: #fff;
+            height: 100%;
+        }
+
+        .tracker-meta-section h6 {
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .tracker-detail-list {
+            display: grid;
+            gap: 0.65rem;
+        }
+
+        .tracker-detail-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: flex-start;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+            padding-bottom: 0.45rem;
+        }
+
+        .tracker-detail-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .tracker-detail-label {
+            color: #6c757d;
+            font-weight: 600;
+            min-width: 88px;
+        }
+
+        .tracker-detail-value {
+            text-align: right;
+            word-break: break-word;
+        }
+
+        .tracker-chip-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.35rem;
+        }
+
+        .tracker-stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.75rem;
+        }
+
+        .tracker-stat-card {
+            border-radius: 0.5rem;
+            padding: 0.85rem;
+            color: #fff;
+        }
+
+        .tracker-stat-card .tracker-stat-value {
+            font-size: 1.6rem;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .tracker-code-block {
+            max-height: 520px;
+            overflow: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .tracker-plain-list {
+            display: grid;
+            gap: 0.4rem;
+        }
+
+        .tracker-rule-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+            gap: 1rem;
+            align-items: start;
+        }
+
+        .tracker-span-6 {
+            grid-column: span 6;
+        }
+
+        .tracker-span-12 {
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 1199.98px) {
+            .tracker-dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tracker-rule-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tracker-span-6,
+            .tracker-span-12 {
+                grid-column: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+
+{% include 'nav_bar.html' %}
+
+{% include 'modals/tracker_remove_object.html' %}
+
+<div class="container-fluid">
+    <div class="row">
+        {% include 'hunter/menu_sidebar.html' %}
+        <div class="col-12 col-lg-10" id="core_content">
+
+            <div class="row">
+                <div class="col-12 my-2">
+                    <div class="card">
+                        <div class="card-header bg-dark text-white">
+                            <span class="badge badge-light lex-row-reverse float-right">
+                                <span id="sparkline"></span>
+                            </span>
+                            <h4 class="card-title">
+                                {% if meta['description'] %}
+                                    {{ meta['description'] }}
+                                {% else %}
+                                    {{ meta['uuid'] }}
+                                {% endif %}
+                            </h4>
+                        </div>
+                        <div class="card-body bg-light">
+                            <div class="tracker-dashboard-grid">
+                                <div class="tracker-meta-section tracker-span-6">
+                                    <h6><i class="fas fa-crosshairs text-primary"></i> Tracker overview</h6>
+                                    <div class="tracker-detail-list">
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Type</span>
+                                            <div class="tracker-detail-value">
+                                        {% if meta['type'] == 'word' %}
+                                            <i class="fas fa-font"></i>&nbsp;
+                                        {% elif meta['type'] == 'set' %}
+                                            <i class="fas fa-layer-group"></i>&nbsp;
+                                        {% elif meta['type'] == 'regex' %}
+                                            <i class="fas fa-compass"></i>&nbsp;
+                                        {% elif meta['type'] == 'typosquatting' %}
+                                            <i class="fas fa-clone"></i>&nbsp;
+                                        {% elif meta['type'] == 'yara' %}
+                                            <span class="bg-danger text-white font-weight-bold" style="font-size: 120%">&nbsp;{ </span>&nbsp;
+                                        {% endif %}
+                                        {{ meta['type'] }}
+                                            </div>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Tracked</span>
+                                            <div class="tracker-detail-value">
+                                        {% if meta['type'] == 'typosquatting' %}
+                                            <a class="btn btn-primary" data-toggle="collapse" href="#collapseTypo" role="button" aria-expanded="false" aria-controls="collapseTypo" data-toggle="tooltip" title="Show Variations">
+                                                {{ meta['tracked'] }} &nbsp;<i class="fas fa-chevron-circle-down"></i>
+                                            </a>
+                                            <div class="collapse" id="collapseTypo">
+                                                <div class="card card-body">
+                                                    {% if typo_squatting %}
+                                                        {% for typo in typo_squatting %}
+                                                            {{typo}}
+                                                            <br/>
+                                                        {% endfor %}
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            {{ meta['tracked'] }}
+                                        {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Created</span>
+                                            <span class="tracker-detail-value">{{meta['date'][0:4]}}/{{meta['date'][4:6]}}/{{meta['date'][6:8]}}</span>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Level</span>
+                                            <span class="tracker-detail-value">
+                                        {% if meta['level'] == 0 %}
+                                            My User
+                                        {% elif meta['level'] == 1 %}
+                                            Global
+                                        {% elif meta['level'] == 2 %}
+                                            My Organisation
+                                        {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Creator</span>
+                                            <span class="tracker-detail-value">{{meta['user']}}</span>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Organisation</span>
+                                            <span class="tracker-detail-value">
+                                        {% if meta['org'] %}
+                                            {{meta['org_name']}}<br>{{ meta['org'] }}
+                                        {% else %}
+                                            <span class="text-muted">Not set</span>
+                                        {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">First seen</span>
+                                            <span class="tracker-detail-value">
+                                        {% if meta['first_seen'] %}
+                                            {{ meta['first_seen'][0:4] }} / {{ meta['first_seen'][4:6] }} / {{ meta['first_seen'][6:8] }}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Last seen</span>
+                                            <span class="tracker-detail-value">
+                                        {% if meta['last_seen'] %}
+                                            {{ meta['last_seen'][0:4] }} / {{ meta['last_seen'][4:6] }} / {{ meta['last_seen'][6:8] }}
+                                        {% else %}
+                                            <span class="text-muted">—</span>
+                                        {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="tracker-meta-section tracker-span-6">
+                                    <h6><i class="fas fa-bell text-warning"></i> Notification & contacts</h6>
+                                    <div class="tracker-detail-list">
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Tags</span>
+                                            <div class="tracker-detail-value">
+                                                <div class="tracker-chip-list justify-content-end">
+                                        {%for tag in meta['tags']%}
+                                            <span class="badge badge-{{ bootstrap_label[loop.index0 % 5] }}">{{ tag }}</span>
+                                        {%endfor%}
+                                                </div>
+                                            </div>
+                                        </div>
+                                {% if meta['filter_duplicate_notification'] %}
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Notification</span>
+                                            <span class="tracker-detail-value"><i class="fas fa-clone"></i> Filter Duplicate Content</span>
+                                        </div>
+                                {% endif %}
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Emails</span>
+                                            <div class="tracker-detail-value tracker-plain-list">
+                                        {% for mail in meta['mails'] %}
+                                            <div>{{ mail }}</div>
+                                        {% endfor %}
+                                                {% if not meta['mails'] %}
+                                                    <span class="text-muted">No email notifications configured</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        <div class="tracker-detail-row">
+                                            <span class="tracker-detail-label">Webhook</span>
+                                            <span class="tracker-detail-value">
+                                                {% if meta['webhook'] %}
+                                                    {{meta['webhook']}}
+                                                {% else %}
+                                                    <span class="text-muted">No webhook configured</span>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="tracker-meta-section tracker-span-12">
+                                    <h6><i class="fas fa-code text-danger"></i> YARA rule & filters</h6>
+                                    <div class="tracker-rule-grid">
+                                        <div>
+                                            <div class="d-flex justify-content-between align-items-center flex-wrap mb-2">
+                                                <h6 class="mb-0">YARA rule content</h6>
+                                            </div>
+                                            {% if rule_content %}
+                                                <pre class="text-collapse border bg-white mb-2 p-3 tracker-code-block">{{ rule_content }}</pre>
+                                                <button class="btn btn-info btn-sm" id="btn_read_more">Show more</button>
+                                            {% else %}
+                                                <div class="alert alert-secondary mb-0">This tracker does not include a YARA rule.</div>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <div class="tracker-detail-list">
+                                                <div class="tracker-detail-row">
+                                                    <h6 class="mb-2">Filters</h6>
+                                                </div>
+                                            </div>
+                                            {% if meta['filters'] %}
+                                                <pre class="border bg-white mb-0 p-3 tracker-code-block">{{ meta['filters'] }}</pre>
+                                            {% else %}
+                                                <span class="badge badge-secondary">No Filters</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="tracker-meta-section tracker-span-12">
+                                    <h6><i class="fas fa-chart-pie text-success"></i> Tracking activity</h6>
+                                    <div class="tracker-detail-row mb-3">
+                                        <span class="tracker-detail-label">Objects matched</span>
+                                        <div class="tracker-detail-value">
+                                            <div class="tracker-chip-list justify-content-end">
+                                        {%for obj_type in meta['nb_objs']%}
+                                                <span class="badge badge-{{ bootstrap_label[loop.index0 % 5] }} p-2">
+                                                {{ obj_type }}
+                                                <span class="badge badge-light">{{ meta['nb_objs'][obj_type] }}</span>
+                                                </span>
+                                        {%endfor%}
+                                                {% if not meta['nb_objs'] %}
+                                                    <span class="badge badge-secondary">No matches yet</span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="tracker-stat-grid">
+                                        <div class="tracker-stat-card bg-success">
+                                            <div class="small text-uppercase">Done</div>
+                                            <div class="tracker-stat-value">{{ meta['objs_stats']['done'] }}</div>
+                                            <div><i class="fa-solid fa-check-to-slot"></i> Reviewed and validated</div>
+                                        </div>
+                                        <div class="tracker-stat-card bg-danger">
+                                            <div class="small text-uppercase">Rejected</div>
+                                            <div class="tracker-stat-value">{{ meta['objs_stats']['fp'] }}</div>
+                                            <div><i class="fa-solid fa-xmark"></i> False positives</div>
+                                        </div>
+                                        <div class="tracker-stat-card bg-info">
+                                            <div class="small text-uppercase">Read</div>
+                                            <div class="tracker-stat-value">{{ meta['objs_stats']['read']}}</div>
+                                            <div><i class="fa-solid fa-eye"></i> Already reviewed</div>
+                                        </div>
+                                        <div class="tracker-stat-card bg-warning text-dark">
+                                            <div class="small text-uppercase">Unread</div>
+                                            <div class="tracker-stat-value">{{ meta['objs_stats']['unread'] }}</div>
+                                            <div><i class="fa-regular fa-eye-slash"></i> Needs attention</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card-footer bg-white border-0 pt-0">
+                            <div class="d-flex flex-wrap justify-content-end">
+                                <a href="{{ url_for('hunters.tracker_delete') }}?uuid={{ meta['uuid'] }}" style="font-size: 15px">
+                                    <button class='btn btn-danger'><i class="fas fa-trash-alt"></i></button>
+                                </a>
+                                <a href="{{ url_for('hunters.tracker_edit') }}?uuid={{ meta['uuid'] }}" class="mx-2" style="font-size: 15px">
+                                    <button class='btn btn-info'>Edit Tracker <i class="fas fa-pencil-alt"></i></button>
+                                </a>
+                                {% if meta['type'] == 'yara' %}
+                                    <a href="{{ url_for('hunters.retro_hunt_add_task') }}?tracker_uuid={{ meta['uuid'] }}" class="mx-2" style="font-size: 15px">
+                                        <button class='btn btn-secondary'><i class="fas fa-plus"></i> Retro Hunt <i class="fas fa-meteor"></i></button>
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h5>Matches by year:</h5>
+            <div>
+                <div class="row">
+                    <div class="col-12 col-lg-11">
+                        <div id="heatmapyear" style="width: 100%;height: 250px;"></div>
+                    </div>
+                    <div class="col-12 col-lg-1">
+                        {% for year in meta['years'] %}
+                            <div><button class="btn btn-info mt-1" onclick="update_heatmap_year({{ year }})">{{ year }}</button></div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <form id="tracker-filter-form" action="{{ url_for('hunters.show_tracker') }}" method='post'>
+                <input id="tracker_uuid" name="tracker_uuid" class="form-control" type="text" value="{{ meta['uuid'] }}" hidden>
+
+                <div class="card mb-5 mt-1">
+                    <div class="card-body">
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="input-group" id="date-range-from">
+                                    <div class="input-group-prepend"><span class="input-group-text"><i
+                                            class="far fa-calendar-alt" aria-hidden="true"></i></span></div>
+                                    <input class="form-control" id="date-range-from-input" placeholder="yyyy-mm-dd"
+                                           name="date_from" autocomplete="off"
+                                           {% if meta['date_from'] %}value="{{ meta['date_from'][0:4] }}-{{ meta['date_from'][4:6] }}-{{ meta['date_from'][6:8] }}"
+                                           {% elif meta['first_seen'] %}value="{{ meta['first_seen'][0:4] }}-{{ meta['first_seen'][4:6] }}-{{ meta['first_seen'][6:8] }}"
+                                           {% endif %}>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="input-group" id="date-range-to">
+                                    <div class="input-group-prepend"><span class="input-group-text"><i
+                                            class="far fa-calendar-alt" aria-hidden="true"></i></span></div>
+                                    <input class="form-control" id="date-range-to-input" placeholder="yyyy-mm-dd"
+                                           name="date_to" autocomplete="off"
+                                           {% if meta['date_to'] %}value="{{ meta['date_to'][0:4] }}-{{ meta['date_to'][4:6] }}-{{ meta['date_to'][6:8] }}"
+                                           {% elif meta['last_seen'] %}value="{{ meta['last_seen'][0:4] }}-{{ meta['last_seen'][4:6] }}-{{ meta['last_seen'][6:8] }}"
+                                           {% endif %}>
+                                </div>
+                            </div>
+                        </div>
+                        <h5>Filter Objects:</h5>
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="decoded_obj" id="decoded_obj" {% if 'decoded' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="decoded_obj"><i class="fas fa-lock-open"></i>&nbsp;Decoded <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="Content that has been decoded from an encoded format, such as base64"></i></label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="item_obj" id="item_obj" {% if 'item' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="item_obj"><i class="fas fa-file"></i>&nbsp;Item <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="Text that has been processed by Null Anonymity. It can include various types of extracted information"></i></label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="file-name_obj" id="file-name_obj" {% if 'file-name' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="file-name_obj"><i class="far fa-file"></i>&nbsp;File Name <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="File Name of file from chats/messages"></i></label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="pgp_obj" id="pgp_obj" {% if 'pgp' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="pgp_obj"><i class="fas fa-key"></i>&nbsp;PGP <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="PGP key/block metadata"></i></label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="title_obj" id="title_obj" {% if 'title' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="title_obj"><i class="fas fa-heading"></i>&nbsp;Title <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="Title that has been extracted from a HTML page"></i></label>
+                                </div>
+                            </div>
+                            <div class="col-lg-6">
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="message_obj" id="message_obj" {% if 'message' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="message_obj"><i class="fas fa-comment-dots"></i>&nbsp;Message <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="Messages from Chats"></i></label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="post_obj" id="post_obj" {% if 'post' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label d-flex align-items-center" for="post_obj"><span class="mr-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" data-toggle="tooltip" data-placement="right" title="Posts imported from forums and threads">
+                                            <path d="M0 0h24v24H0z" fill="none" />
+                                            <path fill="currentColor" d="M20 2H4a2 2 0 0 0-2 2v18l4-4h14a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2M6 9h12v2H6m8 3H6v-2h8m4-4H6V6h12" />
+                                        </svg>
+                                    </span>Forum post</label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="ocr_obj" id="ocr_obj" {% if 'ocr' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="ocr_obj"><i class="fas fa-expand"></i>&nbsp;OCR <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="Text extracted from Images"></i></label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="barcode_obj" id="barcode_obj" {% if 'barcode' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="barcode_obj"><i class="fas fa-barcode"></i>&nbsp;Barcode <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="Qcodes Extracted from Images and Screenshots"></i></label>
+                                </div>
+                                <div class="custom-control custom-switch mt-1">
+                                    <input class="custom-control-input" type="checkbox" name="qrcode_obj" id="qrcode_obj" {% if 'qrcode' in filter_obj_types or filter_obj_types|length == 0 %}checked=""{% endif %}>
+                                    <label class="custom-control-label" for="qrcode_obj"><i class="fas fa-qrcode"></i>&nbsp;Qrcode <i class="fas fa-info-circle text-info" data-toggle="tooltip" data-placement="right" title="Qcodes Extracted from Images and Screenshots"></i></label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap align-items-center mt-2">
+                            <button class="btn btn-info mr-2">
+                                <i class="fas fa-search"></i> Tracked Objects
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary mt-2 mt-sm-0" onclick="exportTrackedObjects()">
+                                <i class="fas fa-file-export"></i> Export Markdown
+                            </button>
+                        </div>
+
+                    </div>
+                </div>
+            </form>
+
+            {% if meta['objs'] %}
+                <hr>
+                <div class="mt-4">
+                    <table id="myTable_" class="table table-striped border-primary">
+                        <thead class="bg-dark text-white">
+                        <tr>
+                            <th>Type</th>
+			      	        <th></th>
+							<th>Id</th>
+                            <th></th>
+				     	    <th>Last Date</th>
+							<th></th>
+				   	    </tr>
+					    </thead>
+					    <tbody style="font-size: 15px;">
+						{% for object in meta['objs'] %}
+							<tr class="border-color: blue;"
+                                data-url-done="{{ url_for('hunters.tracker_object_status_done', uuid=meta['uuid'], gid=object['gid'] ) }}"
+                                data-url-rejected="{{ url_for('hunters.tracker_object_status_reject', uuid=meta['uuid'], gid=object['gid'] ) }}"
+                                data-url-read="{{ url_for('hunters.tracker_object_status_read', uuid=meta['uuid'], gid=object['gid'] ) }}"
+                                data-url-unread="{{ url_for('hunters.tracker_object_status_unread', uuid=meta['uuid'], gid=object['gid'] ) }}">
+								<td>
+									{% with style=object['icon']['style'], icon=object['icon']['icon'] , color=object['icon']['color'] %}
+										{% include 'objects/obj_svg_block.html' %}
+									{% endwith %}
+									{{ object['type'] }}
+								</td>
+								<td>
+									{% if object['subtype'] %}
+										{{ object['subtype']}}
+									{% endif %}
+								</td>
+								<td>
+									<a class="obj-link" target="_blank" href="{{ object['link'] }}{% if object['type'] == 'item' %}&match_uuid={{ meta['uuid'] }}{% endif %}" data-object-id="{{ object['type'] }}:{{ object['subtype'] }}:{{ object['id'] }}">
+										{{ object['id']}}
+									</a>
+                                    {% if 'pdf' in object %}
+                                        {% if object['pdf'] %}
+                                            <a class="obj-link" target="_blank" href="{{ url_for('objects_pdf.pdf_view', id=object['pdf']) }}" data-object-id="{{ object['type'] }}:{{ object['subtype'] }}:{{ object['id'] }}">
+                                                <button class="btn btn-sm btn-outline-dark"><i class="far fa-file-pdf fa-border bg-white" style="color: Red;--fa-border-color: inherit;"></i></button>
+                                            </a>
+                                        {% endif %}
+                                    {% endif %}
+                                    {% if object['tags'] %}
+                                        <div>
+                                            {% for tag in object['tags'] %}
+                                                <span class="badge badge-{{ bootstrap_label[loop.index0 % 5] }} pull-left">{{ tag }}</span>
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+								</td>
+                                <td class="text-center">
+									{% if object['tracker_status'] == 'read' %}
+                                        <i class="fa-solid fa-eye" title="read"></i>
+                                        <span hidden>read</span>
+                                    {% elif object['tracker_status'] == 'done' %}
+                                        <i class="text-success fa-solid fa-check-to-slot" title="done"></i>
+                                        <span hidden>done</span>
+                                    {% elif object['tracker_status'] == 'rejected' %}
+                                        <i class="text-danger fa-solid fa-xmark" title="rejected (false positive)"></i>
+                                        <span hidden>rejected</span>
+                                    {% else %}
+                                        <i class="fa-regular fa-eye-slash" title="unread"></i>
+                                        <span hidden>unread</span>
+									{% endif %}
+								</td>
+
+								<td>
+									{% if object['last_full_date'] %}
+                                        {% if object['last_full_date'] | length == 8 %}
+                                            {{ object['last_full_date'][0:4] }}-{{ object['last_full_date'][4:6] }}-{{ object['last_full_date'][6:8] }}
+                                        {% else %}
+										    {{ object['last_full_date'] }}
+                                        {% endif %}
+									{% endif %}
+								</td>
+								<td class="text-right">
+                                    <span class="status-action-container">
+                                    {% if object['tracker_status'] == 'read' %}
+                                        <a class="btn btn-outline-primary py-0 px-1 status-action" data-status-target="done" href="{{ url_for('hunters.tracker_object_status_done', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as done">
+                                                <i class="text-success fa-solid fa-check-to-slot"></i>
+                                        </a>
+                                        <a class="btn btn-outline-danger py-0 px-1 status-action" data-status-target="rejected" href="{{ url_for('hunters.tracker_object_status_reject', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as rejected (false positive)">
+                                                <i class="fa-solid fa-xmark"></i>
+                                        </a>
+                                        <a class="btn btn-outline-info py-0 px-1 status-action" data-status-target="unread" href="{{ url_for('hunters.tracker_object_status_unread', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as unread">
+                                                <i class="fa-regular fa-eye-slash"></i>
+                                        </a>
+                                    {% elif object['tracker_status'] == 'done' %}
+                                        <a class="btn btn-outline-danger py-0 px-1 status-action" data-status-target="rejected" href="{{ url_for('hunters.tracker_object_status_reject', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as rejected (false positive)">
+                                                <i class="fa-solid fa-xmark"></i>
+                                        </a>
+                                        <a class="btn btn-outline-info py-0 px-1 status-action" data-status-target="unread" href="{{ url_for('hunters.tracker_object_status_unread', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as unread">
+                                                <i class="fa-regular fa-eye-slash"></i>
+                                        </a>
+                                    {% elif object['tracker_status'] == 'rejected' %}
+                                        <a class="btn btn-outline-primary py-0 px-1 status-action" data-status-target="done" href="{{ url_for('hunters.tracker_object_status_done', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as done">
+                                                <i class="text-success fa-solid fa-check-to-slot"></i>
+                                        </a>
+                                        <a class="btn btn-outline-info py-0 px-1 status-action" data-status-target="unread" href="{{ url_for('hunters.tracker_object_status_unread', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as unread">
+                                                <i class="fa-regular fa-eye-slash"></i>
+                                        </a>
+                                    {% else %}
+                                        <a class="btn btn-outline-primary py-0 px-1 status-action" data-status-target="done" href="{{ url_for('hunters.tracker_object_status_done', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as done">
+                                                <i class="text-success fa-solid fa-check-to-slot"></i>
+                                        </a>
+                                        <a class="btn btn-outline-danger py-0 px-1 status-action" data-status-target="rejected" href="{{ url_for('hunters.tracker_object_status_reject', uuid=meta['uuid'], gid=object['gid'] )}}" title="Mark as rejected (false positive)">
+                                                <i class="fa-solid fa-xmark"></i>
+                                        </a>
+                                    {% endif %}
+                                    </span>
+                                    <button class="btn btn-outline-danger py-0 px-1" title="Remove object from traker"
+                                            data-toggle="modal" data-target="#modal_tracker_remove_object"
+                                            data-tracker_uuid="{{ meta['uuid'] }}" data-obj_gid="{{ object['type'] }}:{{ object['subtype'] }}:{{ object['id'] }}">
+                                            <i class="fas fa-trash-alt"></i></button>
+                                    </button>
+{#									<a href="{{ url_for('investigations_b.unregister_investigation') }}?uuid={{ meta['uuid']}}&type={{ object['type'] }}&subtype={{ object['subtype']}}&id={{ object['id']}}">#}
+{#										<button type="button" class="btn btn-danger"><i class="fas fa-trash-alt"></i></button>#}
+{#									</a>#}
+								</td>
+							</tr>
+						{% endfor %}
+					    </tbody>
+				    </table>
+                </div>
+                <hr>
+            {% endif %}
+
+            <div id="graphline" class="text-center mb-4"></div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function () {
+        $('#div_edit_mails').hide();
+        $('#div_edit_tags').hide();
+        $('#div_edit_description').hide();
+        $("#page-Tracker").addClass("active");
+
+        $('#date-range-from').dateRangePicker({
+            separator: ' to ',
+            getValue: function () {
+                if ($('#date-range-from-input').val() && $('#date-range-to-input').val())
+                    return $('#date-range-from-input').val() + ' to ' + $('#date-range-to-input').val();
+                else
+                    return '';
+            },
+            setValue: function (s, s1, s2) {
+                $('#date-range-from-input').val(s1);
+                $('#date-range-to-input').val(s2);
+            }
+        });
+        $('#date-range-to').dateRangePicker({
+            separator: ' to ',
+            getValue: function () {
+                if ($('#date-range-from-input').val() && $('#date-range-to-input').val())
+                    return $('#date-range-from-input').val() + ' to ' + $('#date-range-to-input').val();
+                else
+                    return '';
+            },
+            setValue: function (s, s1, s2) {
+                $('#date-range-from-input').val(s1);
+                $('#date-range-to-input').val(s2);
+            }
+        });
+
+        $('#myTable_').DataTable({
+            "aLengthMenu": [[5, 10, 15, -1], [5, 10, 15, "All"]],
+            "iDisplayLength": 10,
+            "order": [[4, "desc"]]
+        });
+
+        sparkline("sparkline", {{ meta['sparkline'] }}, {});
+        let div_width = $("#graphline").width();
+        $.getJSON("{{ url_for('hunters.get_json_tracker_graph') }}?uuid={{ meta['uuid'] }}{%if meta['date_from']%}&date_from={{ meta['date_from'] }}{%endif%}{%if meta['date_to']%}&date_to={{ meta['date_to'] }}{%endif%}",
+            function (data) {
+                multilines_group("graphline", data, {"width": div_width});
+            }
+        );
+
+    });
+
+    // track viewed objects
+    const obj_links = document.querySelectorAll("a.obj-link");
+    obj_links.forEach(obj_link => {
+        obj_link.addEventListener("mousedown", function () {
+            const objectGID = obj_link.dataset.objectId;
+            navigator.sendBeacon("{{ url_for('hunters.tracker_object_status_read') }}?uuid={{ meta['uuid'] }}&gid=" + objectGID);
+            const row = obj_link.closest("tr");
+            row.children[3].innerHTML = '<i class="fa-solid fa-eye"></i><span hidden>read</span>';
+        });
+    });
+
+    function getStatusIconHtml(status) {
+        if (status === 'read') {
+            return '<i class="fa-solid fa-eye" title="read"></i><span hidden>read</span>';
+        } else if (status === 'done') {
+            return '<i class="text-success fa-solid fa-check-to-slot" title="done"></i><span hidden>done</span>';
+        } else if (status === 'rejected') {
+            return '<i class="text-danger fa-solid fa-xmark" title="rejected (false positive)"></i><span hidden>rejected</span>';
+        }
+        return '<i class="fa-regular fa-eye-slash" title="unread"></i><span hidden>unread</span>';
+    }
+
+    function getStatusButtonsHtml(status, row) {
+        const buttons = [];
+        if (status !== 'done') {
+            buttons.push(`<a class="btn btn-outline-primary py-0 px-1 status-action" data-status-target="done" href="${row.dataset.urlDone}" title="Mark as done"><i class="text-success fa-solid fa-check-to-slot"></i></a>`);
+        }
+        if (status !== 'rejected') {
+            buttons.push(`<a class="btn btn-outline-danger py-0 px-1 status-action" data-status-target="rejected" href="${row.dataset.urlRejected}" title="Mark as rejected (false positive)"><i class="fa-solid fa-xmark"></i></a>`);
+        }
+        if (status !== 'unread') {
+            buttons.push(`<a class="btn btn-outline-info py-0 px-1 status-action" data-status-target="unread" href="${row.dataset.urlUnread}" title="Mark as unread"><i class="fa-regular fa-eye-slash"></i></a>`);
+        }
+        return buttons.join('\n');
+    }
+
+    document.addEventListener('click', function(event) {
+        const statusAction = event.target.closest('a.status-action');
+        if (!statusAction) {
+            return;
+        }
+        event.preventDefault();
+        fetch(statusAction.href, {method: 'GET', credentials: 'same-origin'})
+            .then(function(response) {
+                if (!response.ok) {
+                    throw new Error('Status update failed');
+                }
+                const row = statusAction.closest('tr');
+                const newStatus = statusAction.dataset.statusTarget;
+                row.children[3].innerHTML = getStatusIconHtml(newStatus);
+                row.querySelector('.status-action-container').innerHTML = getStatusButtonsHtml(newStatus, row);
+            })
+            .catch(function(error) {
+                console.error(error);
+            });
+    });
+
+    function toggle_sidebar() {
+        if ($('#nav_menu').is(':visible')) {
+            $('#nav_menu').hide();
+            $('#side_menu').removeClass('border-right')
+            $('#side_menu').removeClass('col-lg-2')
+            $('#core_content').removeClass('col-lg-10')
+        } else {
+            $('#nav_menu').show();
+            $('#side_menu').addClass('border-right')
+            $('#side_menu').addClass('col-lg-2')
+            $('#core_content').addClass('col-lg-10')
+        }
+    }
+
+    // Hover effect
+    var btn_read_more = $('#btn_read_more')
+    var textElement = document.querySelector(".text-collapse");
+    if (textElement) {
+        const lineHeight = parseFloat(window.getComputedStyle(textElement).lineHeight);
+        var maxLines = 30;
+        const maxHeight = lineHeight * maxLines;
+        // Apply initial truncation
+        textElement.style.maxHeight = maxHeight + 'px';
+        btn_read_more.on("click", function () {
+            if (btn_read_more.text() === "Show more") {
+                textElement.style.maxHeight = 'none';
+                btn_read_more.text("Show less");
+            } else {
+                textElement.style.maxHeight = maxHeight + 'px';
+                btn_read_more.text("Show more");
+            }
+        });
+    }
+
+    function edit_tags() {
+        $('#div_edit_mails').hide();
+        $('#div_edit_description').hide();
+        $('#div_edit_tags').show();
+    }
+
+    function edit_mails() {
+        $('#div_edit_tags').hide();
+        $('#div_edit_description').hide();
+        $('#div_edit_mails').show();
+    }
+
+    function edit_description() {
+        $('#div_edit_tags').hide();
+        $('#div_edit_mails').hide();
+        $('#div_edit_description').show();
+    }
+
+    function getItems() {
+        var date_from = $('#date-range-from-input').val();
+        var date_to = $('#date-range-to-input').val();
+        window.location.replace("{{ url_for('hunters.show_tracker') }}?uuid={{ meta['uuid'] }}&date_from=" + date_from + "&date_to=" + date_to);
+    }
+
+    function exportTrackedObjects() {
+        const params = new URLSearchParams();
+        params.set('uuid', '{{ meta['uuid'] }}');
+
+        const dateFrom = $('#date-range-from-input').val();
+        const dateTo = $('#date-range-to-input').val();
+        if (dateFrom) {
+            params.set('date_from', dateFrom);
+        }
+        if (dateTo) {
+            params.set('date_to', dateTo);
+        }
+
+        const selectedTypes = [];
+        $('input[name$="_obj"]:checked').each(function () {
+            selectedTypes.push($(this).attr('name').replace(/_obj$/, ''));
+        });
+        if (selectedTypes.length > 0) {
+            params.set('filter', selectedTypes.join(','));
+        }
+
+        window.open("{{ url_for('hunters.tracker_export_markdown') }}?" + params.toString(), '_blank');
+    }
+
+var heatyearChart = echarts.init(document.getElementById('heatmapyear'));
+window.addEventListener('resize', function() {
+    heatyearChart.resize();
+});
+
+function applyDateFilterFromHeatmap(date) {
+    if (!date) {
+        return;
+    }
+    $('#date-range-from-input').val(date);
+    $('#date-range-to-input').val(date);
+    const filterForm = document.getElementById('tracker-filter-form');
+    if (filterForm) {
+        filterForm.submit();
+    }
+}
+
+var optionheatmap;
+
+optionheatmap = {
+  tooltip: {
+    position: 'top',
+    formatter: function (p) {
+      return p.data[0] + ': ' + p.data[1];
+    }
+  },
+  visualMap: {
+    min: 0,
+    max: 100,
+    calculable: true,
+    orient: 'horizontal',
+    left: '500',
+    top: '-10'
+  },
+  calendar: [
+    {
+      orient: 'horizontal',
+      range: new Date().getFullYear(),
+    },
+  ],
+  series: [
+    {
+      type: 'heatmap',
+      coordinateSystem: 'calendar',
+      data: []
+    },
+
+  ]
+};
+heatyearChart.setOption(optionheatmap);
+heatyearChart.on('click', function (params) {
+    if (!params || !params.data || params.data.length < 2) {
+        return;
+    }
+    const nbMatches = Number(params.data[1]) || 0;
+    if (nbMatches <= 0) {
+        return;
+    }
+    applyDateFilterFromHeatmap(params.data[0]);
+});
+
+update_heatmap_year(null);
+function update_heatmap_year(year) {
+    $.getJSON("{{ url_for('hunters.tracker_show_stats_year') }}?uuid={{ meta['uuid'] }}&year=" + year)
+        .done(function(data) {
+            optionheatmap['visualMap']['max'] = data['max']
+            optionheatmap['calendar'][0]['range'] = data['year']
+            optionheatmap['series'][0]['data'] = data['nb']
+            heatyearChart.setOption(optionheatmap)
+
+        }
+    );
+}
+
+</script>
+
+
+</body>
+
+</html>
