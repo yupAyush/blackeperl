@@ -1,0 +1,83 @@
+{% extends 'deanonymization/base.html' %}
+{% block title_tag %}<title>Threat Actor Timeline — Black Pearl</title>{% endblock %}
+{% block nav_timeline %}active{% endblock %}
+
+{% block page_content %}
+<div class="suite-strip">
+  <div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:12px;">
+    <div>
+      <h2><i class="fas fa-history text-green mr-2"></i>Threat Actor Activity & Infrastructure Timeline</h2>
+      <p>Chronological footprint across darknet marketplace registrations, PGP key generation, and origin server de-anonymizations.</p>
+    </div>
+    <a href="{{ url_for('deanonymization.dashboard') }}" class="btn-bp btn-bp-ghost">
+      <i class="fas fa-arrow-left"></i> Dashboard
+    </a>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Date Filter -->
+  <div class="bp-card">
+    <div class="bp-card-body" style="padding:14px 18px;">
+      <form method="GET" action="{{ url_for('deanonymization.timeline_page') }}"
+            style="display:flex; flex-wrap:wrap; align-items:center; gap:12px;">
+        <label style="font-size:12px; color:var(--text-muted); font-weight:600; margin:0;">FROM</label>
+        <input type="date" name="start_date" value="{{ start_date or '' }}"
+          style="background:var(--bg-primary); border:1px solid var(--border); border-radius:6px; padding:7px 10px; color:var(--text-primary); font-size:13px; outline:none;">
+        <label style="font-size:12px; color:var(--text-muted); font-weight:600; margin:0;">TO</label>
+        <input type="date" name="end_date" value="{{ end_date or '' }}"
+          style="background:var(--bg-primary); border:1px solid var(--border); border-radius:6px; padding:7px 10px; color:var(--text-primary); font-size:13px; outline:none;">
+        <button type="submit" class="btn-bp btn-bp-primary"><i class="fas fa-filter"></i> Filter</button>
+        <a href="{{ url_for('deanonymization.timeline_page') }}" class="btn-bp btn-bp-ghost">Reset</a>
+        <span style="margin-left:auto; font-size:12px; color:var(--text-muted);">
+          <i class="fas fa-stream mr-1"></i>{{ events|length }} events
+        </span>
+      </form>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="row">
+    <div class="col-lg-10 mx-auto">
+      <div style="position:relative; padding-left:40px;">
+        <!-- Vertical line -->
+        <div style="position:absolute; left:14px; top:10px; bottom:10px; width:2px; background:var(--border); border-radius:1px;"></div>
+
+        {% for ev in events %}
+        <div style="position:relative; margin-bottom:22px;">
+          <!-- Dot -->
+          <span style="position:absolute; left:-33px; top:6px; width:16px; height:16px; border-radius:50%; border:2px solid var(--bg-primary);
+            background:{% if ev.severity == 'CRITICAL' %}#ef4444{% elif ev.severity == 'HIGH' %}#f59e0b{% elif ev.severity == 'MEDIUM' %}#3b82f6{% else %}#10b981{% endif %};
+            box-shadow:0 0 6px {% if ev.severity == 'CRITICAL' %}rgba(239,68,68,0.5){% elif ev.severity == 'HIGH' %}rgba(245,158,11,0.5){% else %}rgba(16,185,129,0.4){% endif %};"></span>
+
+          <!-- Content -->
+          <div class="bp-card" style="margin-bottom:0; transition:all 0.15s;">
+            <div style="padding:14px 16px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                  <strong style="color:var(--text-primary); font-size:14px;">{{ ev.event_type }}</strong>
+                  <span class="bp-badge neutral" style="font-size:10px;">{{ ev.category }}</span>
+                  <a href="{{ url_for('deanonymization.actor_profile', actor_id=ev.actor_id) }}"
+                     class="bp-badge warning" style="font-size:10px; text-decoration:none;">
+                    <i class="fas fa-user-secret" style="font-size:8px;"></i> {{ ev.actor_name }}
+                  </a>
+                </div>
+                <span style="font-size:11px; color:var(--text-muted); white-space:nowrap;">
+                  <i class="fas fa-calendar mr-1"></i>{{ ev.date }}
+                </span>
+              </div>
+              <p style="color:var(--text-secondary); font-size:13px; margin:0 0 6px;">{{ ev.description }}</p>
+              <span style="font-size:11px; color:var(--text-muted);">
+                <i class="fas fa-database mr-1"></i>{{ ev.source }}
+              </span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

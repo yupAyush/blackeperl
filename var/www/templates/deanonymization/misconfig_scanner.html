@@ -1,0 +1,253 @@
+{% extends 'deanonymization/base.html' %}
+{% block title_tag %}<title>Tor Misconfiguration Auditor — Black Pearl</title>{% endblock %}
+{% block nav_misconfig %}active{% endblock %}
+
+{% block page_content %}
+<div class="suite-strip">
+  <div class="d-flex justify-content-between align-items-center flex-wrap" style="gap:12px;">
+    <div>
+      <h2><i class="fas fa-spider text-cyan mr-2"></i>Tor Hidden Service Misconfiguration Auditor</h2>
+      <p>Active probing via Tor SOCKS / Tor2Web gateway for exposed status endpoints, TLS leaks, and clearnet origin attribution.</p>
+    </div>
+    <a href="{{ url_for('deanonymization.dashboard') }}" class="btn-bp btn-bp-ghost">
+      <i class="fas fa-arrow-left"></i> Dashboard
+    </a>
+  </div>
+</div>
+
+<div class="page-content">
+
+  <!-- Scan Input -->
+  <div class="bp-card">
+    <div class="bp-card-header"><i class="fas fa-terminal mr-2 text-cyan"></i>Target .onion Address</div>
+    <div class="bp-card-body">
+
+      <!-- Mode info bar -->
+      <div style="margin-bottom:12px; padding:8px 12px; background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:6px; font-size:12px; display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <span><i class="fas fa-network-wired text-cyan mr-1"></i>
+          <strong>Probe Mode:</strong>
+          <span id="scrapeModeBadge" class="bp-badge neutral ml-1">auto-detect</span>
+        </span>
+        <span style="color:var(--text-muted);">│</span>
+        <span style="color:var(--text-muted);"><i class="fas fa-route mr-1"></i>Tries Tor SOCKS 9050/9150 → onion.ly → onion.dog → Demo fallback</span>
+      </div>
+
+      <form method="POST" action="{{ url_for('deanonymization.misconfig_scanner_page') }}">
+        <div style="display:flex; gap:10px; align-items:stretch;">
+          <input type="text" name="onion_url" id="onionUrlInput"
+            style="flex:1; background:var(--bg-primary); border:1px solid var(--border); border-radius:6px; padding:10px 14px; color:var(--text-primary); font-family:'JetBrains Mono',monospace; font-size:13px; outline:none;"
+            placeholder="e.g. darkspectrelk7v43.onion — or paste any real .onion address"
+            onfocus="this.style.borderColor='var(--accent-blue)'" onblur="this.style.borderColor='var(--border)'"
+            value="{{ target_url }}" required>
+          <button type="button" class="btn-bp btn-bp-ghost" onclick="loadDemo()" title="Load DarkSpectre demo scenario">
+            <i class="fas fa-flask text-cyan"></i> Demo
+          </button>
+          <button type="submit" class="btn-bp btn-bp-primary">
+            <i class="fas fa-search-location"></i> Run Audit
+          </button>
+        </div>
+      </form>
+
+      <!-- Technique badges -->
+      <div style="margin-top:14px; display:flex; flex-wrap:wrap; gap:6px;">
+        <span class="bp-badge neutral"><i class="fas fa-file-code"></i> /server-status probe</span>
+        <span class="bp-badge neutral"><i class="fas fa-lock"></i> TLS Cert SAN/Serial</span>
+        <span class="bp-badge neutral"><i class="fas fa-fingerprint"></i> Favicon MurmurHash3</span>
+        <span class="bp-badge neutral"><i class="fas fa-code-branch"></i> .git/HEAD leak</span>
+        <span class="bp-badge neutral"><i class="fas fa-cog"></i> .env exposure</span>
+        <span class="bp-badge neutral"><i class="fas fa-info-circle"></i> phpinfo() probe</span>
+      </div>
+    </div>
+  </div>
+
+  {% if audit_result %}
+  {% set orig = audit_result.origin_attribution %}
+  <!-- Scrape mode badge -->
+  <div style="margin-bottom:10px; display:flex; align-items:center; gap:10px; font-size:12px;">
+    {% if audit_result.scrape_mode == 'tor_socks' %}
+      <span class="bp-badge success"><i class="fas fa-lock"></i> Live — Tor SOCKS Proxy</span>
+    {% elif audit_result.scrape_mode == 'gateway' %}
+      <span class="bp-badge medium"><i class="fas fa-network-wired"></i> Live — Tor2Web Gateway
+        {% if audit_result.gateways_used %}({{ audit_result.gateways_used | join(', ') }}){% endif %}
+      </span>
+    {% else %}
+      <span class="bp-badge neutral"><i class="fas fa-flask"></i> Synthetic Demo Mode</span>
+    {% endif %}
+    <span class="mono text-dimmer" style="font-size:11px;">{{ audit_result.scan_timestamp[:19] }} UTC</span>
+  </div>
+  <div class="row">
+
+    <!-- Attribution Verdict Card -->
+    <div class="col-lg-4">
+      <div class="bp-card" style="border-color: {% if orig.unmasked %}var(--accent-green){% else %}var(--border){% endif %};">
+        <div class="bp-card-header" style="{% if orig.unmasked %}background:rgba(16,185,129,0.12); color:#34d399;{% endif %}">
+          <span><i class="fas fa-shield-alt mr-2"></i>Origin Attribution Verdict</span>
+          {% if orig.unmasked %}
+            <span class="bp-badge success">UNMASKED</span>
+          {% endif %}
+        </div>
+        <div class="bp-card-body" style="text-align:center; padding:28px 20px;">
+          {% if orig.unmasked %}
+            <div style="width:64px; height:64px; background:rgba(245,158,11,0.15); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+              <i class="fas fa-unlock-alt fa-2x" style="color:#fbbf24;"></i>
+            </div>
+            <div class="mono" style="font-size:1.4rem; font-weight:800; color:#fbbf24; margin-bottom:4px;">{{ orig.primary_origin.origin_ip }}</div>
+            <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">{{ orig.primary_origin.hostname }}</div>
+            <span class="bp-badge success" style="font-size:12px; padding:5px 14px;">
+              <i class="fas fa-check-circle"></i> {{ orig.attribution_confidence }}% · {{ orig.attribution_level }}
+            </span>
+
+            <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:14px; margin-top:16px; text-align:left;">
+              <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
+                <div><i class="fas fa-map-marker-alt text-red mr-2"></i><strong>Location:</strong> {{ orig.primary_origin.city }}, {{ orig.primary_origin.country }}</div>
+                <div><i class="fas fa-network-wired text-cyan mr-2"></i><strong>ISP:</strong> {{ orig.primary_origin.isp }} ({{ orig.primary_origin.asn }})</div>
+                <div><i class="fas fa-crosshairs text-yellow mr-2"></i><strong>Vector:</strong> {{ orig.primary_origin.vector }}</div>
+              </div>
+            </div>
+
+            <div style="margin-top:14px; text-align:left;">
+              <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin-bottom:6px;">Evidence Chain</div>
+              <ul style="margin:0; padding-left:16px; font-size:12px; color:var(--text-secondary); line-height:1.8;">
+                {% for ev in orig.evidence_chain %}
+                  <li>{{ ev }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+          {% else %}
+            <div style="width:64px; height:64px; background:var(--bg-primary); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px;">
+              <i class="fas fa-shield-virus fa-2x text-dimmer"></i>
+            </div>
+            <div style="font-weight:600; color:var(--text-primary); margin-bottom:6px;">Origin Not Exposed</div>
+            <div style="font-size:12px; color:var(--text-muted);">No direct clearnet IP found in probed endpoints. Try deeper vectors or passive OSINT.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Fingerprints Card -->
+      <div class="bp-card">
+        <div class="bp-card-header"><i class="fas fa-fingerprint mr-2 text-cyan"></i>Cryptographic Fingerprints</div>
+        <div class="bp-card-body" style="font-size:12px;">
+          {% if audit_result.favicon_intelligence.found %}
+          <div style="margin-bottom:10px;">
+            <div style="color:var(--text-muted); margin-bottom:3px;">Favicon MurmurHash3</div>
+            <div class="mono" style="color:#fbbf24; font-weight:600;">{{ audit_result.favicon_intelligence.murmur3_hash }}</div>
+            <div style="color:var(--text-muted); margin-top:4px;">Shodan Query:</div>
+            <code style="color:#34d399; font-size:11px;">{{ audit_result.favicon_intelligence.shodan_query }}</code>
+          </div>
+          <hr class="bp-divider">
+          {% endif %}
+          {% if audit_result.tls_intelligence.valid %}
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <div><span style="color:var(--text-muted);">CN: </span><span class="mono" style="color:#e2e8f0;">{{ audit_result.tls_intelligence.common_name }}</span></div>
+            <div><span style="color:var(--text-muted);">Serial: </span><code style="color:#60a5fa; font-size:11px;">{{ audit_result.tls_intelligence.serial_number }}</code></div>
+            <div><span style="color:var(--text-muted);">Issuer: </span><span>{{ audit_result.tls_intelligence.issuer }}</span></div>
+            <div>
+              <span style="color:var(--text-muted);">SANs: </span>
+              {% for san in audit_result.tls_intelligence.sans %}
+                <span class="bp-badge neutral" style="font-size:10px; margin:2px;">{{ san }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Findings Table -->
+    <div class="col-lg-8">
+      <div class="bp-card">
+        <div class="bp-card-header">
+          <span><i class="fas fa-list-alt mr-2 text-yellow"></i>Probe Findings ({{ audit_result.findings_count }})</span>
+          <span class="mono text-dimmer" style="font-size:11px;">{{ audit_result.domain }}</span>
+        </div>
+        <div class="table-responsive">
+          <table class="bp-table">
+            <thead>
+              <tr>
+                <th>Probed Path</th>
+                <th>Severity</th>
+                <th>Finding</th>
+                <th>Leaked IOCs</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for f in audit_result.findings %}
+              <tr>
+                <td><code style="color:#fbbf24; font-size:12px;">{{ f.path }}</code></td>
+                <td>
+                  {% if f.severity == 'CRITICAL' %}
+                    <span class="bp-badge critical">CRITICAL</span>
+                  {% elif f.severity == 'HIGH' %}
+                    <span class="bp-badge high">HIGH</span>
+                  {% else %}
+                    <span class="bp-badge medium">{{ f.severity }}</span>
+                  {% endif %}
+                  <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">{{ f.type }}</div>
+                </td>
+                <td style="font-size:12px; color:var(--text-secondary);">{{ f.description }}</td>
+                <td>
+                  {% if f.extracted_intel.ips %}
+                    {% for ip in f.extracted_intel.ips %}
+                      <span class="bp-badge critical mono" style="font-size:10px;"><i class="fas fa-server" style="font-size:8px;"></i> {{ ip }}</span>
+                    {% endfor %}
+                  {% endif %}
+                  {% if f.extracted_intel.hostnames %}
+                    {% for host in f.extracted_intel.hostnames %}
+                      <span class="bp-badge medium mono" style="font-size:10px;"><i class="fas fa-globe" style="font-size:8px;"></i> {{ host }}</span>
+                    {% endfor %}
+                  {% endif %}
+                  {% if f.extracted_intel.banners %}
+                    {% for b in f.extracted_intel.banners %}
+                      <div class="mono text-dimmer" style="font-size:10px;">{{ b }}</div>
+                    {% endfor %}
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function loadDemo() {
+  const input = document.getElementById('onionUrlInput');
+  input.value = 'darkspectrelk7v43.onion';
+  input.style.borderColor = 'var(--accent-cyan)';
+  setTimeout(() => { input.style.borderColor = 'var(--border)'; }, 1200);
+
+  // Update mode badge
+  const badge = document.getElementById('scrapeModeBadge');
+  if (badge) {
+    badge.textContent = 'demo (synthetic)';
+    badge.className = 'bp-badge neutral ml-1';
+  }
+}
+
+// Show actual scrape mode if result exists in page
+document.addEventListener('DOMContentLoaded', () => {
+  {% if audit_result %}
+  const badge = document.getElementById('scrapeModeBadge');
+  if (badge) {
+    const mode = '{{ audit_result.scrape_mode | default("unknown") }}';
+    if (mode === 'tor_socks') {
+      badge.textContent = 'Live — Tor SOCKS';
+      badge.className = 'bp-badge success ml-1';
+    } else if (mode === 'gateway') {
+      badge.textContent = 'Live — Tor2Web Gateway';
+      badge.className = 'bp-badge medium ml-1';
+    } else {
+      badge.textContent = 'Synthetic Demo';
+      badge.className = 'bp-badge neutral ml-1';
+    }
+  }
+  {% endif %}
+});
+</script>
+{% endblock %}

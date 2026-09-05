@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% block title_tag %}<title>Palantir // Black Pearl — Threat Actor De-anonymization Suite</title>{% endblock %}
+  <meta name="description"
+    content="Government-Grade Threat Actor De-anonymization, Real-time IP Geolocation, Tor Origin Attribution & Stylometry Command Center">
+
+  <!-- Bootstrap 4 CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <!-- Font Awesome 6 Pro/Free CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Google Fonts: Inter & IBM Plex Mono / JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <!-- Mapbox GL JS CSS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+
+  <style>
+    /* ── Monochrome Command-Center Design System ───────────────────────────────────────────── */
+    :root {
+      --bg-canvas: #0a0a0a;
+      --bg-sidebar: #0e0e0e;
+      --bg-panel: #141414;
+      --bg-panel-hover: #1a1a1a;
+      --bg-inset: #0c0c0c;
+      --bg-input: #111111;
+
+      --border-panel: #2a2a2a;
+      --border-subtle: rgba(255, 255, 255, 0.06);
+      --border-focus: #666666;
+
+      /* Monochrome status tokens — white / gray / black only */
+      --status-critical: #ffffff;
+      --status-critical-bg: rgba(255, 255, 255, 0.08);
+      --status-warning: #b0b0b0;
+      --status-warning-bg: rgba(255, 255, 255, 0.06);
+      --status-info: #888888;
+      --status-info-bg: rgba(255, 255, 255, 0.05);
+      --status-cyan: #999999;
+      --status-cyan-bg: rgba(255, 255, 255, 0.05);
+      --status-success: #cccccc;
+      --status-success-bg: rgba(255, 255, 255, 0.06);
+
+      --text-main: #e8e8e8;
+      --text-secondary: #999999;
+      --text-muted: #666666;
+      --text-dim: #3a3a3a;
+
+      /* Subpage variable aliases */
+      --bg-primary: var(--bg-panel);
+      --border: var(--border-panel);
+      --accent-blue: #888888;
+      --accent-green: #cccccc;
+      --accent-red: #ffffff;
+      --text-primary: var(--text-main);
+
+      --sidebar-w: 64px;
+      --hud-h: 76px;
+      --font-mono: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    /* ── Subpage Legacy Compatibility Classes (Palantir Themed) ── */
+    .suite-strip {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+    }
+
+    .suite-strip h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 3px;
+      letter-spacing: -0.01em;
+    }
+
+    .suite-strip p {
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      margin: 0;
+    }
+
+    .bp-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .bp-card-header {
+      background: #0b0f17;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .bp-card-body {
+      padding: 16px;
+    }
+
+    .btn-bp {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-radius: 3px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.12s ease;
+      font-family: var(--font-mono);
+      border: 1px solid transparent;
+    }
+
+    .btn-bp-primary {
+      background: #ffffff;
+      color: #000000;
+      border-color: #ffffff;
+    }
+
+    .btn-bp-primary:hover {
+      background: #cccccc;
+      color: #000000;
+      text-decoration: none;
+    }
+
+    .btn-bp-ghost {
+      background: #0e131d;
+      border-color: var(--border-panel);
+      color: var(--text-secondary);
+    }
+
+    .btn-bp-ghost:hover {
+      background: #141b29;
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    .bp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      font-size: 10.5px;
+      font-weight: 600;
+      border-radius: 2px;
+      font-family: var(--font-mono);
+    }
+
+    .bp-badge.neutral {
+      background: #101622;
+      border: 1px solid #1c2637;
+      color: #94a3b8;
+    }
+
+    .bp-badge.critical {
+      background: rgba(255, 255, 255, 0.10);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .bp-badge.high {
+      background: rgba(255, 255, 255, 0.07);
+      color: #cccccc;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .bp-badge.medium {
+      background: rgba(255, 255, 255, 0.05);
+      color: #999999;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .bp-badge.success {
+      background: rgba(255, 255, 255, 0.06);
+      color: #bbbbbb;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .bp-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .bp-table th {
+      background: #090c13;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 9px 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .bp-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    .bp-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 12.5px;
+      line-height: 1.45;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      letter-spacing: -0.01em;
+    }
+
+    /* ── Persistent Classification Stripe ────────────────────────── */
+    .classification-banner {
+      background: #0c0c0c;
+      border-bottom: 1px solid #222222;
+      padding: 3px 18px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: #999999;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase;
+      user-select: none;
+      z-index: 1100;
+      position: relative;
+    }
+
+    .classification-banner .class-center {
+      color: #cccccc;
+    }
+
+    .classification-banner .system-id {
+      color: #666666;
+    }
+
+    /* ── App Layout Shell ────────────────────────────────────────── */
+    .app-shell {
+      display: flex;
+      min-height: calc(100vh - 24px);
+      width: 100%;
+    }
+
+    /* ── Left Command Rail (Sidebar) ─────────────────────────────── */
+    .app-sidebar {
+      width: var(--sidebar-w);
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border-panel);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 0 18px;
+      position: fixed;
+      top: 24px;
+      bottom: 0;
+      left: 0;
+      z-index: 1000;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 4px;
+      background: #181818;
+      border: 1px solid #333333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #cccccc;
+      font-size: 18px;
+      margin-bottom: 24px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .brand-mark:hover {
+      background: #222222;
+      border-color: #555555;
+      color: #ffffff;
+      text-decoration: none;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+    }
+
+    .nav-icons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      align-items: center;
+      flex: 1;
+    }
+
+    .nav-icon-link {
+      width: 44px;
+      height: 44px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 15px;
+      text-decoration: none;
+      transition: all 0.12s ease;
+      position: relative;
+      border: 1px solid transparent;
+    }
+
+    .nav-icon-link:hover {
+      color: #ffffff;
+      background: #121826;
+      border-color: #1e283c;
+      text-decoration: none;
+    }
+
+    .nav-icon-link.active {
+      color: #ffffff;
+      background: #1a1a1a;
+      border-color: #333333;
+      box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.06);
+    }
+
+    .nav-icon-link.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      background: #ffffff;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .sidebar-bottom {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+    }
+
+    /* ── Main Canvas Wrapper ─────────────────────────────────────── */
+    .app-main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 24px);
+    }
+
+    /* ── Top HUD Navigation ──────────────────────────────────────── */
+    .app-hud {
+      min-height: var(--hud-h);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-panel);
+      background: rgba(11, 14, 21, 0.95);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 500;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .hud-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hud-title-block {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hud-system-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-system-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .hud-telemetry-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--bg-inset);
+      border: 1px solid var(--border-panel);
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .telemetry-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .telemetry-label {
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+
+    .telemetry-val {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .telemetry-pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #cccccc;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+      animation: pulseGreen 2s infinite;
+    }
+
+    @keyframes pulseGreen {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.4;
+        transform: scale(0.85);
+      }
+    }
+
+    .hud-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hud-search-bar {
+      position: relative;
+      width: 260px;
+    }
+
+    .hud-search-bar input {
+      width: 100%;
+      height: 34px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      padding: 0 42px 0 32px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .hud-search-bar input:focus {
+      border-color: var(--border-focus);
+      background: #0d121c;
+    }
+
+    .hud-search-bar i.search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .hud-search-bar .kbd-shortcut {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 1px 5px;
+      background: #161d2b;
+      border: 1px solid #28354c;
+      color: #94a3b8;
+      border-radius: 3px;
+    }
+
+    .hud-btn {
+      height: 34px;
+      padding: 0 14px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .hud-btn-primary {
+      background: #ffffff;
+      color: #000000;
+      border-color: #ffffff;
+    }
+
+    .hud-btn-primary:hover {
+      background: #cccccc;
+      color: #000000;
+      text-decoration: none;
+    }
+
+    .hud-btn-ghost {
+      background: var(--bg-inset);
+      border-color: var(--border-panel);
+      color: var(--text-secondary);
+    }
+
+    .hud-btn-ghost:hover {
+      background: #121826;
+      border-color: #2a374e;
+      color: #ffffff;
+      text-decoration: none;
+    }
+
+    /* ── Content Canvas ─────────────────────────────────────────── */
+    .content-canvas {
+      padding: 20px 24px 40px;
+      flex: 1;
+    }
+
+    /* ── Palantir Panel Components ───────────────────────────────── */
+    .palantir-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      position: relative;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .palantir-panel-header {
+      background: #0b0f17;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 42px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .panel-header-title {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-header-title .prefix {
+      color: #666666;
+    }
+
+    .palantir-panel-body {
+      padding: 16px;
+    }
+
+    /* ── Tactical Metric Cards ───────────────────────────────────── */
+    .metric-card-dense {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 105px;
+      position: relative;
+      transition: border-color 0.15s ease;
+    }
+
+    .metric-card-dense:hover {
+      border-color: #3a3a3a;
+    }
+
+    .metric-top-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .metric-title {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .metric-value-huge {
+      font-family: var(--font-mono);
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .metric-subtext {
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Tactical Status Badges ──────────────────────────────────── */
+    .tactical-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pill-critical {
+      background: rgba(255, 255, 255, 0.10);
+      color: #ffffff;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .pill-warning {
+      background: rgba(255, 255, 255, 0.07);
+      color: #cccccc;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .pill-info {
+      background: rgba(255, 255, 255, 0.05);
+      color: #aaaaaa;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .pill-cyan {
+      background: rgba(255, 255, 255, 0.05);
+      color: #bbbbbb;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .pill-success {
+      background: rgba(255, 255, 255, 0.06);
+      color: #cccccc;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .pill-neutral {
+      background: rgba(255, 255, 255, 0.04);
+      color: #999999;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    /* ── Tactical Tables ─────────────────────────────────────────── */
+    .tactical-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .tactical-table th {
+      background: #090c13;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 9px 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .tactical-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    .tactical-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* ── General Utilities ───────────────────────────────────────── */
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    .text-dimmer {
+      color: var(--text-muted);
+    }
+
+    .text-cyan {
+      color: #cccccc !important;
+    }
+
+    .text-amber {
+      color: #bbbbbb !important;
+    }
+
+    .text-red {
+      color: #ffffff !important;
+    }
+
+    .text-green {
+      color: #cccccc !important;
+    }
+
+    /* Mapbox custom tactical markers */
+    .mapbox-tactical-marker {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s ease;
+    }
+
+    .mapbox-tactical-marker.marker-critical {
+      background: #ffffff;
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.6);
+      border: 2px solid #000000;
+    }
+
+    .mapbox-tactical-marker.marker-warning {
+      background: #bbbbbb;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+      border: 2px solid #333333;
+    }
+
+    .mapbox-tactical-marker.marker-c2 {
+      background: #888888;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+      border: 2px solid #aaaaaa;
+    }
+
+    .mapbox-tactical-marker::after {
+      content: '';
+      position: absolute;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      opacity: 0.5;
+      animation: radarPulse 2.5s infinite;
+    }
+
+    @keyframes radarPulse {
+      0% {
+        transform: scale(0.6);
+        opacity: 0.8;
+      }
+
+      100% {
+        transform: scale(1.8);
+        opacity: 0;
+      }
+    }
+
+    /* Mapbox Popup Overrides */
+    .mapboxgl-popup-content {
+      background: #111111 !important;
+      border: 1px solid #2a2a2a !important;
+      border-radius: 4px !important;
+      color: #e8e8e8 !important;
+      padding: 12px 16px !important;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8) !important;
+      font-family: var(--font-sans) !important;
+      max-width: 320px !important;
+    }
+
+    .mapboxgl-popup-tip {
+      border-top-color: #111111 !important;
+      border-bottom-color: #111111 !important;
+    }
+
+    .mapboxgl-popup-close-button {
+      color: #94a3b8 !important;
+      font-size: 16px !important;
+      padding: 4px 8px !important;
+    }
+
+    .mapboxgl-popup-close-button:hover {
+      color: #ffffff !important;
+      background: transparent !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0a0a0a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #2a2a2a;
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3a3a3a;
+    }
+
+    @media (max-width: 992px) {
+      .app-sidebar {
+        width: 52px;
+      }
+
+      .app-main {
+        margin-left: 52px;
+      }
+
+      .content-canvas {
+        padding: 14px;
+      }
+
+      .hud-search-bar {
+        width: 180px;
+      }
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+
+  <!-- ══ CLASSIFICATION BANNER ═══════════════════════════════════ -->
+  <div class="classification-banner">
+    <div>
+      <i class="fas fa-shield-halved text-amber mr-1"></i>
+      <span>// LAW ENFORCEMENT SENSITIVE // TLP:AMBER // ORCON //</span>
+    </div>
+    <div class="class-center d-none d-md-block">
+      OPERATION BLACK PEARL: DARK WEB DE-ANONYMIZATION SUITE
+    </div>
+    <div class="system-id">
+      SYS-NODE: BP-ALPHA-01 // UTC <span id="utcTimeTicker">--:--:--</span>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <!-- ══ LEFT COMMAND RAIL ═══════════════════════════════════════ -->
+    <aside class="app-sidebar">
+      <!-- Tactical Brand Mark -->
+      <a href="{{ url_for('deanonymization.dashboard') }}" class="brand-mark" title="Black Pearl Command Theater">
+        <i class="fas fa-crosshairs"></i>
+      </a>
+
+      <!-- Primary Tools Navigation -->
+      <nav class="nav-icons" aria-label="Tactical Navigation">
+        <a href="{{ url_for('deanonymization.dashboard') }}" class="nav-icon-link {% block nav_home %}{% endblock %}"
+          title="Command Center & Geospatial Theater (Mapbox)">
+          <i class="fas fa-layer-group"></i>
+        </a>
+        <a href="{{ url_for('deanonymization.misconfig_scanner_page') }}"
+          class="nav-icon-link {% block nav_scanner %}{% endblock %}"
+          title="Tor Hidden Service Misconfiguration Auditor">
+          <i class="fas fa-spider"></i>
+        </a>
+        <a href="{{ url_for('deanonymization.stylometry_page') }}"
+          class="nav-icon-link {% block nav_stylometry %}{% endblock %}" title="AI Stylometric Persona Attribution">
+          <i class="fas fa-fingerprint"></i>
+        </a>
+        <a href="{{ url_for('deanonymization.timeline_page') }}"
+          class="nav-icon-link {% block nav_timeline %}{% endblock %}" title="Temporal Footprint & Forensic Timeline">
+          <i class="fas fa-clock-rotate-left"></i>
+        </a>
+        <a href="{{ url_for('deanonymization.relationship_graph', actor_id='ACTOR-001-DARKSPECTRE') }}"
+          class="nav-icon-link {% block nav_graph %}{% endblock %}" title="Interactive Network & Relationship Graph">
+          <i class="fas fa-project-diagram"></i>
+        </a>
+        <a href="{{ url_for('deanonymization.export_report') }}" target="_blank" class="nav-icon-link"
+          title="Printable Law Enforcement Intelligence Dossier">
+          <i class="fas fa-file-shield"></i>
+        </a>
+      </nav>
+
+      <!-- Bottom Controls -->
+      <div class="sidebar-bottom">
+        <a href="{{ url_for('deanonymization.export_json') }}" class="nav-icon-link" title="Export Raw JSON Dossier">
+          <i class="fas fa-code"></i>
+        </a>
+        <a href="{{ url_for('deanonymization.export_csv') }}" class="nav-icon-link" title="Export CSV Evidence Table">
+          <i class="fas fa-file-csv"></i>
+        </a>
+        <a href="/" class="nav-icon-link" title="Return to AIL Framework Core">
+          <i class="fas fa-arrow-right-from-bracket"></i>
+        </a>
+      </div>
+    </aside>
+
+    <!-- ══ MAIN CANVAS ════════════════════════════════════════════ -->
+    <main class="app-main">
+      <!-- Persistent Top HUD Navigation -->
+      <header class="app-hud">
+        <div class="hud-left">
+          <div class="hud-title-block">
+            <div class="hud-system-title">
+              <span class="text-cyan">PALANTIR //</span>
+              <span>{% block header_title %}COMMAND THEATER{% endblock %}</span>
+            </div>
+            <div class="hud-system-subtitle">
+              AUTONOMOUS DE-ANONYMIZATION & REAL-TIME ATTRIBUTION PLATFORM
+            </div>
+          </div>
+
+          <div class="hud-telemetry-group d-none d-lg-flex">
+            <div class="telemetry-item">
+              <span class="telemetry-pulse-dot"></span>
+              <span class="telemetry-label">INGESTION:</span>
+              <span class="telemetry-val text-green" id="telemetryStatus">ACTIVE (POLLING)</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">IOCs:</span>
+              <span class="telemetry-val" id="telemetryIocCount">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">MAP NODES:</span>
+              <span class="telemetry-val text-cyan" id="telemetryNodesCount">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-right">
+          <!-- Global Target Search -->
+          <div class="hud-search-bar">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="globalTargetSearchInput" placeholder="Pivot: IP, Alias, .onion...">
+            <span class="kbd-shortcut">/</span>
+          </div>
+
+          <!-- Trigger Live Feed Sync Button -->
+          <button type="button" class="hud-btn hud-btn-ghost" id="hudSyncFeedsBtn" onclick="triggerFeedSync()"
+            title="Query Live Threat Feeds">
+            <i class="fas fa-arrows-rotate" id="syncFeedsIcon"></i>
+            <span class="d-none d-sm-inline">SYNC FEEDS</span>
+          </button>
+
+          <!-- Quick Action: Tor Audit -->
+          <a href="{{ url_for('deanonymization.misconfig_scanner_page') }}" class="hud-btn hud-btn-primary">
+            <i class="fas fa-radar"></i>
+            <span class="d-none d-sm-inline">NEW AUDIT</span>
+          </a>
+        </div>
+      </header>
+
+      <!-- Page Content Container -->
+      <div class="content-canvas">
+        {% block page_content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  <!-- ── Core CDN Libraries ─────────────────────────────────────── -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <!-- Mapbox GL JS -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+
+  <script>
+    // ── Live UTC Clock Ticker ──────────────────────────────────────────
+    function updateClock() {
+      const now = new Date();
+      const utcString = now.toUTCString().split(' ')[4] + ' UTC';
+      const tickerEl = document.getElementById('utcTimeTicker');
+      if (tickerEl) tickerEl.textContent = utcString;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ── Global Keyboard Shortcut (Slash / to focus search) ────────────
+    window.addEventListener('keydown', function (e) {
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        const searchInput = document.getElementById('globalTargetSearchInput');
+        if (searchInput) searchInput.focus();
+      }
+    });
+
+    // ── Live Feed Sync Handler ─────────────────────────────────────────
+    function triggerFeedSync() {
+      const icon = document.getElementById('syncFeedsIcon');
+      if (icon) icon.classList.add('fa-spin');
+
+      fetch('/deanonymization/api/feeds/sync', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (icon) icon.classList.remove('fa-spin');
+          if (data.success) {
+            // Update telemetry
+            const iocCountEl = document.getElementById('telemetryIocCount');
+            if (iocCountEl && data.stats) iocCountEl.textContent = data.stats.total_indicators;
+
+            // If on dashboard, refresh map and stream
+            if (typeof window.refreshDashboardFeeds === 'function') {
+              window.refreshDashboardFeeds();
+            }
+          }
+        })
+        .catch(err => {
+          if (icon) icon.classList.remove('fa-spin');
+          console.error('Feed sync error:', err);
+        });
+    }
+
+    // Initial Telemetry Fetch
+    fetch('/deanonymization/api/feeds/live?limit=1')
+      .then(res => res.json())
+      .then(data => {
+        if (data.stats) {
+          const iocCountEl = document.getElementById('telemetryIocCount');
+          if (iocCountEl) iocCountEl.textContent = data.stats.total_indicators || 12;
+        }
+      })
+      .catch(() => { });
+  </script>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+
+</html>

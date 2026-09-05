@@ -1,0 +1,234 @@
+{% extends 'deanonymization/base.html' %}
+{% block title_tag %}<title>Dossier: {{ actor.primary_alias }} — Black Pearl</title>{% endblock %}
+
+{% block extra_head %}
+<style>
+.profile-avatar {
+  width:72px; height:72px; background:rgba(59,130,246,0.12); border:2px solid #3b82f6;
+  border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+</style>
+{% endblock %}
+
+{% block page_content %}
+<!-- Profile Banner -->
+<div style="background:linear-gradient(135deg, #0d1b2a 0%, #111827 100%); border-bottom:1px solid var(--border); padding:24px;">
+  <div style="max-width:1600px; margin:0 auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+      <div style="display:flex; align-items:center; gap:20px; flex-wrap:wrap;">
+        <div class="profile-avatar">
+          <i class="fas fa-user-secret fa-2x" style="color:#fbbf24;"></i>
+        </div>
+        <div>
+          <div style="display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:6px;">
+            <h2 style="margin:0; font-weight:800; font-size:1.6rem; color:#f1f5f9;">{{ actor.primary_alias }}</h2>
+            {% if actor.risk_level == 'CRITICAL' %}
+              <span class="bp-badge critical">CRITICAL RISK</span>
+            {% else %}
+              <span class="bp-badge high">HIGH RISK</span>
+            {% endif %}
+            <span class="bp-badge neutral">{{ actor.status }}</span>
+            <span class="bp-badge success"><i class="fas fa-check-circle"></i>{{ actor.attribution_confidence }}% Attributed</span>
+          </div>
+          <div style="font-size:13px; color:var(--text-secondary);">
+            <i class="fas fa-tag mr-1 text-cyan"></i>{{ actor.category }}
+            <span style="margin:0 8px; color:var(--border);">·</span>
+            <span class="mono text-dimmer" style="font-size:11px;">{{ actor.actor_id }}</span>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <a href="{{ url_for('deanonymization.relationship_graph', actor_id=actor.actor_id) }}" class="btn-bp btn-bp-primary">
+          <i class="fas fa-project-diagram"></i> Relationship Graph
+        </a>
+        <a href="{{ url_for('deanonymization.export_report', actor_id=actor.actor_id) }}" target="_blank" class="btn-bp btn-bp-ghost">
+          <i class="fas fa-file-pdf text-red"></i> PDF Report
+        </a>
+        <a href="{{ url_for('deanonymization.export_json', actor_id=actor.actor_id) }}" class="btn-bp btn-bp-ghost">
+          <i class="fas fa-code text-cyan"></i> JSON
+        </a>
+        <a href="{{ url_for('deanonymization.dashboard') }}" class="btn-bp btn-bp-ghost">
+          <i class="fas fa-arrow-left"></i>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="page-content">
+  <div class="row">
+
+    <!-- Left: Summary + Aliases + Wallets -->
+    <div class="col-lg-8">
+
+      <!-- Summary -->
+      <div class="bp-card">
+        <div class="bp-card-header"><i class="fas fa-file-alt mr-2" style="color:#60a5fa;"></i>Executive Summary</div>
+        <div class="bp-card-body">
+          <p style="color:var(--text-secondary); font-size:14px; line-height:1.7; margin-bottom:14px;">{{ actor.summary }}</p>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;">
+            {% for tag in actor.tags %}
+              <span class="bp-badge neutral" style="color:#60a5fa;"><i class="fas fa-hashtag" style="font-size:9px;"></i> {{ tag }}</span>
+            {% endfor %}
+          </div>
+          <hr class="bp-divider">
+          <div style="display:flex; gap:24px; flex-wrap:wrap; font-size:12px; color:var(--text-muted);">
+            <div><i class="fas fa-calendar-alt mr-1"></i>First Observed: <strong style="color:var(--text-primary);">{{ actor.first_seen }}</strong></div>
+            <div><i class="fas fa-clock mr-1"></i>Last Active: <strong style="color:var(--text-primary);">{{ actor.last_seen }}</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Aliases / Cross-Market Handles -->
+      <div class="bp-card">
+        <div class="bp-card-header"><i class="fas fa-user-tag mr-2 text-cyan"></i>Cross-Marketplace Pseudonyms & Handles</div>
+        <div class="table-responsive">
+          <table class="bp-table">
+            <thead>
+              <tr>
+                <th>Platform / Forum</th>
+                <th>Handle</th>
+                <th>Reputation</th>
+                <th>First Seen</th>
+                <th>Pivot</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for alias in actor.aliases %}
+              <tr>
+                <td><strong style="color:var(--text-primary);">{{ alias.platform }}</strong></td>
+                <td><span class="mono" style="color:#fbbf24; font-weight:600;">{{ alias.handle }}</span></td>
+                <td><span class="bp-badge neutral" style="font-size:10px;">{{ alias.reputation_rep }}</span></td>
+                <td><span class="text-dimmer">{{ alias.first_seen }}</span></td>
+                <td>
+                  <a href="{{ alias.url }}" target="_blank" class="btn-bp btn-bp-ghost btn-bp-sm">
+                    <i class="fas fa-external-link-alt" style="font-size:10px;"></i>
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Crypto Wallets -->
+      <div class="bp-card">
+        <div class="bp-card-header"><i class="fab fa-bitcoin mr-2 text-yellow"></i>Cryptocurrency Wallets & Financial Rail</div>
+        <div class="table-responsive">
+          <table class="bp-table">
+            <thead>
+              <tr>
+                <th>Currency</th>
+                <th>Wallet Address</th>
+                <th>Total USD Received</th>
+                <th>Tx Count</th>
+                <th>Last Seen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for w in actor.crypto_wallets %}
+              <tr>
+                <td><span class="bp-badge warning">{{ w.currency }}</span></td>
+                <td><span class="mono text-cyan" style="font-size:11px;">{{ w.address }}</span></td>
+                <td><strong style="color:#34d399;">${{ "{:,.0f}".format(w.total_received_usd) }}</strong></td>
+                <td>{{ w.tx_count }}</td>
+                <td><span class="text-dimmer">{{ w.last_seen }}</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Infra + PGP + Diurnal -->
+    <div class="col-lg-4">
+
+      <!-- Unmasked Infra -->
+      <div class="bp-card" style="border-color:rgba(239,68,68,0.3);">
+        <div class="bp-card-header" style="color:#f87171;"><i class="fas fa-unlock-alt mr-2"></i>Unmasked Origin Servers</div>
+        <div class="bp-card-body" style="display:flex; flex-direction:column; gap:12px;">
+          {% for infra in actor.associated_infrastructure %}
+          <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span class="mono text-dimmer" style="font-size:11px;">{{ infra.onion_domain }}</span>
+              <span class="bp-badge critical" style="font-size:10px;">UNMASKED</span>
+            </div>
+            <div class="mono" style="font-size:1.2rem; font-weight:700; color:#fbbf24; margin-bottom:4px;">
+              <i class="fas fa-server mr-1" style="font-size:14px;"></i>{{ infra.origin_ip }}
+            </div>
+            <div style="font-size:12px; color:var(--text-secondary); margin-bottom:4px;">{{ infra.clearnet_hostname }}</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-bottom:8px;">{{ infra.location }} · {{ infra.isp }} ({{ infra.asn }})</div>
+            <div style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.25); border-radius:5px; padding:8px; font-size:11px; font-family:'JetBrains Mono',monospace; color:#34d399;">
+              <strong>Vector:</strong> {{ infra.unmasking_method }}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- PGP Keys -->
+      <div class="bp-card">
+        <div class="bp-card-header"><i class="fas fa-key mr-2 text-green"></i>PGP Cryptographic Keys</div>
+        <div class="bp-card-body" style="display:flex; flex-direction:column; gap:10px;">
+          {% for pgp in actor.pgp_keys %}
+          <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <strong style="color:#34d399; font-size:13px;">{{ pgp.key_id }}</strong>
+              <span class="bp-badge neutral" style="font-size:10px;">{{ pgp.algorithm }} {{ pgp.bit_length }}b</span>
+            </div>
+            <div class="mono text-dimmer" style="font-size:10px; margin-bottom:4px; word-break:break-all;">{{ pgp.fingerprint }}</div>
+            <div style="font-size:12px; color:#60a5fa;"><i class="fas fa-envelope mr-1"></i>{{ pgp.uid_email }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Diurnal Chart -->
+      <div class="bp-card">
+        <div class="bp-card-header"><i class="fas fa-clock mr-2 text-cyan"></i>Diurnal 24h Activity Profile</div>
+        <div class="bp-card-body">
+          <div id="diurnalChart" style="height:160px;"></div>
+          <div style="text-align:center; font-size:12px; color:var(--text-muted); margin-top:8px;">
+            Operational Timezone:<br>
+            <strong style="color:#fbbf24;">{{ diurnal_profile.estimated_timezone_offset }} ({{ diurnal_profile.probable_operational_regions }})</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+$(document).ready(function() {
+  var el = document.getElementById('diurnalChart');
+  if (el && typeof echarts !== 'undefined') {
+    var c = echarts.init(el, 'dark');
+    c.setOption({
+      backgroundColor: 'transparent',
+      grid: {top:4, left:4, right:4, bottom:20, containLabel:true},
+      tooltip: {trigger:'axis', backgroundColor:'#131922', borderColor:'#1e2d40', textStyle:{color:'#e2e8f0'}},
+      xAxis: {
+        type:'category',
+        data:['0','2','4','6','8','10','12','14','16','18','20','22'],
+        axisLabel:{color:'#4a5568', fontSize:9}, axisLine:{lineStyle:{color:'#1e2d40'}}
+      },
+      yAxis:{type:'value', splitLine:{lineStyle:{color:'#1e2d40'}}, axisLabel:{show:false}},
+      series:[{
+        type:'line', smooth:true,
+        data: {{ diurnal_profile.hourly_percentages|tojson }},
+        areaStyle:{color:new echarts.graphic.LinearGradient(0,0,0,1,[
+          {offset:0, color:'rgba(59,130,246,0.45)'},{offset:1, color:'rgba(59,130,246,0)'}
+        ])},
+        itemStyle:{color:'#3b82f6'}, lineStyle:{color:'#3b82f6', width:2},
+        symbol:'none'
+      }]
+    });
+    window.addEventListener('resize', function(){ c.resize(); });
+  }
+});
+</script>
+{% endblock %}
