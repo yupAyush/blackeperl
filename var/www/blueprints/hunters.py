@@ -1,0 +1,1148 @@
+#!/usr/bin/env python3
+# -*-coding:UTF-8 -*
+
+"""
+    Blueprint Flask: crawler splash endpoints: dashboard, onion crawler ...
+"""
+
+import os
+import sys
+import json
+from urllib.parse import urlparse
+from urllib.request import urlopen
+from urllib.error import HTTPError, URLError
+
+from flask import render_template, jsonify, request, Blueprint, redirect, url_for, Response, abort
+from flask_login import login_required, current_user
+
+sys.path.append('modules')
+import Flask_config
+
+# Import Role_Manager
+from Role_Manager import login_admin, login_org_admin, login_user, login_user_no_api, login_read_only
+
+sys.path.append(os.environ['AIL_BIN'])
+##################################
+# Import Project packages
+##################################
+from lib import ail_core
+from lib.ConfigLoader import ConfigLoader
+from lib.objects import ail_objects
+from lib import chats_viewer
+from lib import module_extractor
+from lib import item_basic
+from lib import Tracker
+from lib import Tag
+from lib import markdown_report
+from packages import Date
+
+config_loader = ConfigLoader()
+#### VARIABLES ####
+root_url = config_loader.get_config_str("Notifications", "ail_domain")
+
+bootstrap_label = Flask_config.bootstrap_label
+
+config_loader = None
+
+# ============ BLUEPRINT ============
+hunters = Blueprint('hunters', __name__, template_folder=os.path.join(os.environ['AIL_FLASK'], 'templates/hunter'))
+
+# ============ VARIABLES ============
+
+
+# ============ FUNCTIONS ============
+def api_validator(api_response):
+    if api_response:
+        return Response(json.dumps(api_response[0], indent=2, sort_keys=True), mimetype='application/json'), api_response[1]
+
+def create_json_response(data, status_code):
+    if status_code == 403:
+        abort(403)
+    elif status_code == 404:
+        abort(404)
+    return Response(json.dumps(data, indent=2, sort_keys=True), mimetype='application/json'), status_code
+
+def _extract_rulezet_rule_id(rulezet_url):
+    parsed = urlparse(rulezet_url)
+    if parsed.scheme not in {'http', 'https'}:
+        return None
+    if parsed.netloc not in {'rulezet.org', 'www.rulezet.org'}:
+        return None
+    path_segments = [segment for segment in parsed.path.split('/') if segment]
+    if not path_segments:
+        return None
+    return path_segments[-1]
+
+
+# ============= ROUTES ==============
+
+@hunters.route("/yara/rule/rulezet/import", methods=['GET'])
+@login_required
+@login_read_only
+def import_rulezet_yara_rule():
+    rulezet_url = request.args.get('url', '').strip()
+    if not rulezet_url:
+        return jsonify({'status': 'error', 'reason': 'Invalid Rulezet URL.'}), 400
+
+    rule_id = _extract_rulezet_rule_id(rulezet_url)
+    if not rule_id:
+        return jsonify({'status': 'error', 'reason': 'Unable to extract Rule ID from URL.'}), 400
+
+    api_url = f'https://rulezet.org/api/rule/public/detail/{rule_id}'
+    try:
+        with urlopen(api_url, timeout=15) as response:
+            if response.status != 200:
+                return jsonify({'status': 'error', 'reason': 'Unable to fetch Rulezet rule details.'}), 502
+            payload = json.loads(response.read().decode('utf-8'))
+    except HTTPError as error:
+        if error.code == 404:
+            return jsonify({'status': 'error', 'reason': 'Rule not found on Rulezet.'}), 404
+        return jsonify({'status': 'error', 'reason': 'Unable to fetch Rulezet rule details.'}), 502
+    except (URLError, TimeoutError, json.JSONDecodeError):
+        return jsonify({'status': 'error', 'reason': 'Unable to fetch Rulezet rule details.'}), 502
+
+    if payload.get('format') != 'yara':
+        return jsonify({'status': 'error', 'reason': 'Only YARA rules are supported.'}), 400
+
+    return jsonify({
+        'status': 'success',
+        'title': payload.get('title', ''),
+        'description': payload.get('description', ''),
+        'to_string': payload.get('to_string', ''),
+        'format': payload.get('format', '')
+    })
+
+##################
+#    TRACKERS    #
+##################
+
+@hunters.route('/hunting', methods=['GET'])
+@login_required
+@login_read_only
+def trackers_dashboard():
+    user_org = current_user.get_org()
+    user_id = current_user.get_user_id()
+    trackers = Tracker.get_trackers_dashboard(user_org, user_id)
+    for t in trackers:
+        t['obj'] = ail_objects.get_obj_basic_meta(ail_objects.get_obj_from_global_id(t['obj']))
+    stats = Tracker.get_trackers_stats(user_org, user_id)
+    my_trackers = Tracker.get_trackers_owner_dashboard(user_org, user_id)
+    my_retro_hunts = Tracker.get_retro_hunt_owner_dashboard(user_org, user_id)
+    return render_template("trackers_dashboard.html", trackers=trackers, stats=stats,
+                           my_trackers=my_trackers, my_retro_hunts=my_retro_hunts, bootstrap_label=bootstrap_label)
+
+@hunters.route("/trackers/all")
+@login_required
+@login_read_only
+def tracked_menu():
+    user_id = current_user.get_user_id()
+    org_trackers = Tracker.get_org_trackers_meta(current_user.get_org())
+    user_trackers = Tracker.get_user_trackers_meta(user_id)
+    global_trackers = Tracker.get_global_trackers_meta()
+    return render_template("trackersManagement.html", user_trackers=user_trackers, org_trackers=org_trackers, global_trackers=global_trackers, bootstrap_label=bootstrap_label)
+
+@hunters.route("/trackers/word")
+@login_required
+@login_read_only
+def tracked_menu_word():
+    tracker_type = 'word'
+    user_id = current_user.get_user_id()
+    org_trackers = Tracker.get_org_trackers_meta(current_user.get_org(), tracker_type='word')
+    user_trackers = Tracker.get_user_trackers_meta(user_id, tracker_type='word')
+    global_trackers = Tracker.get_global_trackers_meta(tracker_type='word')
+    return render_template("trackersManagement.html", user_trackers=user_trackers, org_trackers=org_trackers, global_trackers=global_trackers, bootstrap_label=bootstrap_label, tracker_type=tracker_type)
+
+@hunters.route("/trackers/set")
+@login_required
+@login_read_only
+def tracked_menu_set():
+    tracker_type = 'set'
+    user_id = current_user.get_user_id()
+    org_trackers = Tracker.get_org_trackers_meta(current_user.get_org(), tracker_type=tracker_type)
+    user_trackers = Tracker.get_user_trackers_meta(user_id, tracker_type=tracker_type)
+    global_trackers = Tracker.get_global_trackers_meta(tracker_type=tracker_type)
+    return render_template("trackersManagement.html", user_trackers=user_trackers, org_trackers=org_trackers, global_trackers=global_trackers, bootstrap_label=bootstrap_label, tracker_type=tracker_type)
+
+@hunters.route("/trackers/regex")
+@login_required
+@login_read_only
+def tracked_menu_regex():
+    tracker_type = 'regex'
+    user_id = current_user.get_user_id()
+    org_trackers = Tracker.get_org_trackers_meta(current_user.get_org(), tracker_type=tracker_type)
+    user_trackers = Tracker.get_user_trackers_meta(user_id, tracker_type=tracker_type)
+    global_trackers = Tracker.get_global_trackers_meta(tracker_type=tracker_type)
+    return render_template("trackersManagement.html", user_trackers=user_trackers, org_trackers=org_trackers, global_trackers=global_trackers, bootstrap_label=bootstrap_label, tracker_type=tracker_type)
+
+@hunters.route("/trackers/yara")
+@login_required
+@login_read_only
+def tracked_menu_yara():
+    tracker_type = 'yara'
+    user_id = current_user.get_user_id()
+    org_trackers = Tracker.get_org_trackers_meta(current_user.get_org(), tracker_type=tracker_type)
+    user_trackers = Tracker.get_user_trackers_meta(user_id, tracker_type=tracker_type)
+    global_trackers = Tracker.get_global_trackers_meta(tracker_type=tracker_type)
+    return render_template("trackersManagement.html", user_trackers=user_trackers, org_trackers=org_trackers, global_trackers=global_trackers, bootstrap_label=bootstrap_label, tracker_type=tracker_type)
+
+@hunters.route("/trackers/typosquatting")
+@login_required
+@login_read_only
+def tracked_menu_typosquatting():
+    tracker_type = 'typosquatting'
+    user_id = current_user.get_user_id()
+    org_trackers = Tracker.get_org_trackers_meta(current_user.get_org(), tracker_type=tracker_type)
+    user_trackers = Tracker.get_user_trackers_meta(user_id, tracker_type=tracker_type)
+    global_trackers = Tracker.get_global_trackers_meta(tracker_type=tracker_type)
+    return render_template("trackersManagement.html", user_trackers=user_trackers, org_trackers=org_trackers, global_trackers=global_trackers,
+                           bootstrap_label=bootstrap_label, tracker_type=tracker_type)
+
+@hunters.route("/trackers/admin")
+@login_required
+@login_admin
+def tracked_menu_admin():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    org_trackers = Tracker.get_orgs_trackers_meta(user_org)
+    user_trackers = Tracker.get_users_trackers_meta(user_id)
+    return render_template("trackersManagement.html", user_trackers=user_trackers, org_trackers=org_trackers, global_trackers=[],
+                           bootstrap_label=bootstrap_label, is_admin=True)
+
+
+@hunters.route("/tracker/show", methods=['GET', 'POST'])
+@login_required
+@login_read_only
+def show_tracker():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    filter_obj_types = []
+
+    if request.method == 'POST':
+        tracker_uuid = request.form.get('tracker_uuid', None)
+        date_from = request.form.get('date_from')
+        date_to = request.form.get('date_to')
+        for obj_type in Tracker.get_objects_tracked():
+            new_filter = request.form.get(f'{obj_type}_obj')
+            if new_filter:
+                filter_obj_types.append(obj_type)
+        filter_obj_types = ail_core.sanitize_tracked_objects(filter_obj_types)
+        if len(filter_obj_types) == ail_core.get_nb_objects_tracked():
+            filter_obj_types = []
+        filter_obj_types = ','.join(filter_obj_types)
+        if filter_obj_types:
+            return redirect(url_for('hunters.show_tracker', uuid=tracker_uuid, date_from=date_from, date_to=date_to, filter=filter_obj_types))
+        else:
+            return redirect(url_for('hunters.show_tracker', uuid=tracker_uuid, date_from=date_from, date_to=date_to))
+
+    tracker_uuid = request.args.get('uuid', None)
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    filter_obj_types = ail_core.sanitize_tracked_objects(request.args.get('filter', '').split(','))
+    if len(filter_obj_types) == ail_core.get_nb_objects_tracked():
+        filter_obj_types = []
+
+    res = Tracker.api_check_tracker_acl(tracker_uuid, user_org, user_id, user_role, 'view')
+    if res:  # invalid access
+        return Response(json.dumps(res[0], indent=2, sort_keys=True), mimetype='application/json'), res[1]
+
+    if date_from:
+        date_from = date_from.replace('-', '')
+    if date_to:
+        date_to = date_to.replace('-', '')
+
+    tracker = Tracker.Tracker(tracker_uuid)
+    meta = tracker.get_meta(options={'description', 'level', 'mails', 'org', 'org_name', 'filters', 'sparkline', 'tags',
+                                     'filter_duplicate_notification',
+                                     'user', 'webhooks', 'nb_objs', 'objs_stats', 'years'})
+
+    if meta['type'] == 'yara':
+        yara_rule_content = Tracker.get_yara_rule_content(meta['tracked'])
+    else:
+        yara_rule_content = None
+
+    if meta['type'] == 'typosquatting':
+        typo_squatting = Tracker.get_tracked_typosquatting_domains(meta['tracked'])
+        sorted(typo_squatting)
+    else:
+        typo_squatting = set()
+
+    if date_from:
+        date_from, date_to = Date.sanitise_daterange(date_from, date_to)
+        objs = tracker.get_objs_by_daterange(date_from, date_to, filter_obj_types)
+        meta['objs'] = []
+        options = {'last_full_date', 'pdf'}
+        for obj_gid in objs:
+            obj_type, obj_subtype, obj_id = obj_gid.split(':', 2)
+            obj_meta = ail_objects.get_object_meta(obj_type, obj_subtype, obj_id, options=options, flask_context=True)
+            obj_meta['tracker_status'] = tracker.get_obj_status(obj_gid)
+            obj_meta['gid'] = obj_gid
+            meta['objs'].append(obj_meta)
+    else:
+        date_from = ''
+        date_to = ''
+        meta['objs'] = []
+
+    meta['date_from'] = date_from
+    meta['date_to'] = date_to
+    meta['item_sources'] = sorted(meta['filters'].get('item', {}).get('sources', []))
+    if meta['filters']:
+        meta['filters'] = json.dumps(meta['filters'], indent=4)
+
+    return render_template("tracker_show.html", meta=meta,
+                            rule_content=yara_rule_content,
+                            typo_squatting=typo_squatting,
+                            filter_obj_types=filter_obj_types,
+                            bootstrap_label=bootstrap_label)
+
+
+@hunters.route('/tracker/export/markdown', methods=['GET'])
+@login_required
+@login_read_only
+def tracker_export_markdown():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+
+    tracker_uuid = request.args.get('uuid', None)
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+    filter_obj_types = ail_core.sanitize_tracked_objects(request.args.get('filter', '').split(','))
+    if len(filter_obj_types) == ail_core.get_nb_objects_tracked():
+        filter_obj_types = []
+
+    res = Tracker.api_check_tracker_acl(tracker_uuid, user_org, user_id, user_role, 'view')
+    if res:
+        return Response(json.dumps(res[0], indent=2, sort_keys=True), mimetype='application/json'), res[1]
+
+    if date_from:
+        date_from = date_from.replace('-', '')
+    if date_to:
+        date_to = date_to.replace('-', '')
+    date_from, date_to = Date.sanitise_daterange(date_from, date_to)
+
+    tracker = Tracker.Tracker(tracker_uuid)
+    tracker_meta = tracker.get_meta(options={'description', 'filters', 'tracked'})
+
+    if tracker_meta['type'] == 'yara':
+        rule_content = Tracker.get_yara_rule_content(tracker_meta['tracked'])
+    else:
+        rule_content = None
+
+    exported_objects = []
+    for obj_gid in tracker.get_objs_by_daterange(date_from, date_to, filter_obj_types):
+        obj_type, obj_subtype, obj_id = obj_gid.split(':', 2)
+        obj = ail_objects.get_object(obj_type, obj_subtype, obj_id)
+        meta = obj.get_meta(options={'last_full_date', 'first_seen', 'last_seen', 'full_date', 'date', 'link', 'protocol', 'tags'}, flask_context=False)
+        content = markdown_report.normalize_content(obj.get_content())
+        matches = module_extractor.get_tracker_match(user_org, user_id, obj, content, match_uuid=tracker_uuid)
+        if matches:
+            matches = sorted(matches, key=lambda match: match[0])
+            matches = module_extractor.merge_overlap(matches)
+
+        exported_objects.append({
+            'meta': meta,
+            'date_label': markdown_report.format_object_date(meta),
+            'infoleak_tags': markdown_report.get_infoleak_taxonomy_tags(meta.get('tags')),
+            'excerpts': markdown_report.build_match_excerpts(content, matches, context_lines=5),
+        })
+
+    markdown_document = markdown_report.build_tracker_markdown(
+        root_url,
+        tracker_meta,
+        rule_content,
+        exported_objects,
+        filter_obj_types=filter_obj_types,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    filename = markdown_report.get_tracker_export_filename(tracker_meta)
+
+    response = Response(markdown_document, mimetype='text/markdown')
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+@hunters.route("/tracker/show/stats/year", methods=['GET'])
+@login_required
+@login_read_only
+def tracker_show_stats_year():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+
+    tracker_uuid = request.args.get('uuid', None)
+    year = request.args.get('year')
+
+    res = Tracker.api_check_tracker_acl(tracker_uuid, user_org, user_id, user_role, 'view')
+    if res:  # invalid access
+        return Response(json.dumps(res[0], indent=2, sort_keys=True), mimetype='application/json'), res[1]
+
+    stats = Tracker.api_get_nb_year_tracker(tracker_uuid, year)
+    if stats[1] != 200:
+        return create_json_response(stats[0], stats[1])
+    else:
+        return jsonify(stats[0])
+
+def parse_add_edit_request(request_form):
+    to_track = request_form.get("tracker")
+    tracker_uuid = request_form.get("tracker_uuid")
+    tracker_type = request_form.get("tracker_type")
+    nb_words = request_form.get("nb_word", 1)
+    description = request.form.get("description", '')
+    webhook = request_form.get("webhook", '')
+    source = request_form.get("source", '').strip()
+    if not source:
+        source = 'manual'
+    level = request_form.get("level", 0)
+    mails = request_form.get("mails", [])
+    notification_filter_duplicate = request_form.get('notification_filter_duplicate', False)
+
+    # TAGS
+    tags = request_form.get("tags", [])
+    taxonomies_tags = request_form.get('taxonomies_tags')
+    if taxonomies_tags:
+        try:
+            taxonomies_tags = json.loads(taxonomies_tags)
+        except:
+            taxonomies_tags = []
+    else:
+        taxonomies_tags = []
+    galaxies_tags = request_form.get('galaxies_tags')
+    if galaxies_tags:
+        try:
+            galaxies_tags = json.loads(galaxies_tags)
+        except:
+            galaxies_tags = []
+    else:
+        galaxies_tags = []
+    # custom tags
+    if tags:
+        tags = tags.split()
+    else:
+        tags = []
+    escaped = []
+    for tag in tags:
+        escaped.append(tag)
+    tags = escaped + taxonomies_tags + galaxies_tags
+
+    # YARA #
+    if tracker_type == 'yara':
+        yara_custom_rule = request_form.get("yara_custom_rule")
+        to_track = yara_custom_rule
+        tracker_type = 'yara_custom'
+
+    level = int(level)
+    if mails:
+        mails = mails.split()
+    else:
+        mails = []
+    if notification_filter_duplicate == 'on':
+        notification_filter_duplicate = True
+    else:
+        notification_filter_duplicate = False
+
+    # FILTERS
+    filters = {}
+    for obj_type in Tracker.get_objects_tracked():
+        new_filter = request_form.get(f'{obj_type}_obj')
+        if new_filter == 'on':
+            filters[obj_type] = {}
+            # Mimetypes
+            mimetypes = request_form.get(f'mimetypes_{obj_type}', [])
+            if mimetypes:
+                mimetypes = json.loads(mimetypes)
+                filters[obj_type]['mimetypes'] = mimetypes
+            # Sources
+            sources = request_form.get(f'sources_{obj_type}', [])
+            if sources:
+                sources = json.loads(sources)
+                if sources:
+                    filters[obj_type]['sources'] = sources
+            excludes = request_form.get(f'sources_{obj_type}_exclude', [])
+            if excludes:
+                excludes = json.loads(excludes)
+                filters[obj_type]['excludes'] = excludes
+            # Subtypes
+            for obj_subtype in ail_core.get_object_all_subtypes(obj_type):
+                subtype = request_form.get(f'filter_{obj_type}_{obj_subtype}')
+                if subtype == 'on':
+                    if 'subtypes' not in filters[obj_type]:
+                        filters[obj_type]['subtypes'] = []
+                    filters[obj_type]['subtypes'].append(obj_subtype)
+
+    input_dict = {"tracked": to_track, "type": tracker_type,
+                  "tags": tags, "mails": mails, "filters": filters,
+                  "notification_filter_duplicate" : notification_filter_duplicate,
+                  "level": level, "description": description, "webhook": webhook, "source": source}
+    if tracker_uuid:
+        input_dict['uuid'] = tracker_uuid
+    if tracker_type == 'set':
+        try:
+            input_dict['nb_words'] = int(nb_words)
+        except (ValueError, TypeError):
+            input_dict['nb_words'] = 1
+    return input_dict
+
+@hunters.route("/tracker/add", methods=['GET', 'POST'])
+@login_required
+@login_user_no_api
+def add_tracked_menu():
+    if request.method == 'POST':
+        input_dict = parse_add_edit_request(request.form)
+        user_id = current_user.get_user_id()
+        org = current_user.get_org()
+        res = Tracker.api_add_tracker(input_dict, org, user_id)
+        if res[1] == 200:
+            return redirect(url_for('hunters.show_tracker', uuid=res[0].get('uuid')))
+        else:
+            return create_json_response(res[0], res[1])
+    else:
+        return render_template("tracker_add.html",
+                               dict_tracker={},
+                               all_sources=item_basic.get_all_items_sources(r_list=True),
+                               tags_selector_data=Tag.get_tags_selector_data())
+
+@hunters.route("/tracker/edit", methods=['GET', 'POST'])
+@login_required
+@login_user_no_api
+def tracker_edit():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    if request.method == 'POST':
+        input_dict = parse_add_edit_request(request.form)
+        res = Tracker.api_edit_tracker(input_dict, user_org, user_id, user_role)
+        if res[1] == 200:
+            return redirect(url_for('hunters.show_tracker', uuid=res[0].get('uuid')))
+        else:
+            return create_json_response(res[0], res[1])
+    else:
+        tracker_uuid = request.args.get('uuid', None)
+        res = Tracker.api_check_tracker_acl(tracker_uuid, user_org, user_id, user_role, 'edit')
+        if res:  # invalid access
+            return create_json_response(res[0], res[1])
+
+        tracker = Tracker.Tracker(tracker_uuid)
+        dict_tracker = tracker.get_meta(options={'description', 'filter_duplicate_notification', 'level', 'mails', 'filters', 'tags', 'webhooks', 'source'})
+        if dict_tracker['type'] == 'yara':
+            dict_tracker['content'] = Tracker.get_yara_rule_content(dict_tracker['tracked'])
+        elif dict_tracker['type'] == 'set':
+            tracked, nb_words = dict_tracker['tracked'].rsplit(';', 1)
+            tracked = tracked.replace(',', ' ')
+            dict_tracker['tracked'] = tracked
+            dict_tracker['nb_words'] = nb_words
+
+        taxonomies_tags, galaxies_tags, custom_tags = Tag.sort_tags_taxonomies_galaxies_customs(dict_tracker['tags'])
+        tags_selector_data = Tag.get_tags_selector_data()
+        tags_selector_data['taxonomies_tags'] = taxonomies_tags
+        tags_selector_data['galaxies_tags'] = galaxies_tags
+        dict_tracker['tags'] = custom_tags
+        return render_template("tracker_add.html",
+                               dict_tracker=dict_tracker,
+                               all_sources=item_basic.get_all_items_sources(r_list=True),
+                               tags_selector_data=tags_selector_data)
+
+@hunters.route('/tracker/delete', methods=['GET'])
+@login_required
+@login_user_no_api
+def tracker_delete():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    res = Tracker.api_delete_tracker({'uuid': tracker_uuid}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        return redirect(url_for('hunters.trackers_dashboard'))
+
+
+@hunters.route("/tracker/graph/json", methods=['GET'])
+@login_required
+@login_read_only
+def get_json_tracker_graph():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    res = Tracker.api_check_tracker_acl(tracker_uuid, user_org, user_id, user_role, 'view')
+    if res:
+        return create_json_response(res[0], res[1])
+
+    date_from = request.args.get('date_from')
+    date_to = request.args.get('date_to')
+
+    if date_from:
+        date_from = date_from.replace('-', '')
+    if date_to:
+        date_to = date_to.replace('-', '')
+    if date_from and date_to:
+        res = Tracker.get_trackers_graph_by_day([tracker_uuid], date_from=date_from, date_to=date_to)
+    else:
+        res = Tracker.get_trackers_graph_by_day([tracker_uuid])
+    return jsonify(res)
+
+@hunters.route('/tracker/object/add', methods=['GET'])
+@login_required
+@login_user
+def tracker_object_add():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+    if object_global_id.startswith('messages::'):
+        obj = ail_objects.get_obj_from_global_id(object_global_id)
+        date = obj.get_date()
+    else:
+        date = request.args.get('date')  # TODO check daterange
+    res = Tracker.api_tracker_add_object({'uuid': tracker_uuid, 'gid': object_global_id, 'date': date}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.show_tracker', uuid=tracker_uuid))
+
+@hunters.route('/tracker/object/remove', methods=['GET'])
+@login_required
+@login_user_no_api
+def tracker_object_remove():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+    res = Tracker.api_tracker_remove_object({'uuid': tracker_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.show_tracker', uuid=tracker_uuid))
+
+@hunters.route('/tracker/object/status/done', methods=['GET'])
+@login_required
+@login_user_no_api
+def tracker_object_status_done():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_tracker_object_status_done({'uuid': tracker_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.show_tracker', uuid=tracker_uuid))
+
+@hunters.route('/tracker/object/status/unread', methods=['GET'])
+@login_required
+@login_user_no_api
+def tracker_object_status_unread():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_tracker_object_status_unread({'uuid': tracker_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.show_tracker', uuid=tracker_uuid))
+
+
+@hunters.route('/tracker/object/status/reject', methods=['GET'])
+@login_required
+@login_user_no_api
+def tracker_object_status_reject():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_tracker_object_status_reject({'uuid': tracker_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.show_tracker', uuid=tracker_uuid))
+
+@hunters.route('/tracker/object/status/read', methods=['POST'])
+@login_required
+@login_user_no_api
+def tracker_object_status_read():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_tracker_object_status_read({'uuid': tracker_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    return create_json_response(res[0], res[1])
+
+
+@hunters.route('/tracker/objects', methods=['GET'])
+@login_required
+@login_admin
+def tracker_objects():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    tracker_uuid = request.args.get('uuid', None)
+    res = Tracker.api_check_tracker_acl(tracker_uuid, user_org, user_id, user_role, 'edit')
+    if res:  # invalid access
+        return create_json_response(res[0], res[1])
+
+    tracker = Tracker.Tracker(tracker_uuid)
+    meta = tracker.get_meta(options={'description', 'sparkline', 'tags', 'nb_objs'})
+    if meta['type'] == 'yara':
+        yara_rule_content = Tracker.get_yara_rule_content(meta['tracked'])
+    else:
+        yara_rule_content = None
+
+    chats, messages = chats_viewer.get_message_report(tracker.get_objs())
+
+    meta['date'] = Date.get_current_utc_full_time()
+
+    return render_template("messages_report.html", meta=meta, yara_rule_content=yara_rule_content,
+                           # ollama_enabled=images_engine.is_ollama_enabled(),
+                           chats=chats, messages=messages, bootstrap_label=bootstrap_label)
+
+    # TODO
+
+    # Manual - Title
+    #        - Summary
+
+    # Messages table
+
+    # Timeline messages by chats - line
+    # pie charts NB messages all chats
+    # Barchart NB messages by days
+
+####################
+#    RETRO HUNT    #
+####################
+
+@hunters.route('/retro_hunt/tasks', methods=['GET'])
+@login_required
+@login_read_only
+def retro_hunt_all_tasks():
+    user_org = current_user.get_org()
+    retro_hunts_global = Tracker.get_retro_hunt_metas(Tracker.get_retro_hunts_global())
+    retro_hunts_org = Tracker.get_retro_hunt_metas(Tracker.get_retro_hunts_org(user_org))
+    return render_template("retro_hunt_tasks.html", retro_hunts_global=retro_hunts_global, retro_hunts_org=retro_hunts_org, bootstrap_label=bootstrap_label)
+
+@hunters.route('/retro_hunt/tasks/admin', methods=['GET'])
+@login_required
+@login_admin
+def retro_hunt_all_tasks_admin():
+    retro_hunts_org = Tracker.get_retro_hunt_metas(Tracker.get_retro_hunts_orgs())
+    return render_template("retro_hunt_tasks.html", retro_hunts_global=[], retro_hunts_org=retro_hunts_org, bootstrap_label=bootstrap_label, is_admin=True)
+
+@hunters.route('/retro_hunt/task/show', methods=['GET'])
+@login_required
+@login_read_only
+def retro_hunt_show_task():
+    user_org = current_user.get_org()
+    user_id = current_user.get_user_id()
+    user_role = current_user.get_role()
+
+    task_uuid = request.args.get('uuid', None)
+    objs = request.args.get('objs', False)
+
+    # date_from_item = request.args.get('date_from')
+    # date_to_item = request.args.get('date_to')
+    # if date_from_item:
+    #     date_from_item = date_from_item.replace('-', '')
+    # if date_to_item:
+    #     date_to_item = date_to_item.replace('-', '')
+
+    res = Tracker.api_check_retro_hunt_task_uuid(task_uuid)
+    if res:
+        return create_json_response(res[0], res[1])
+    retro_hunt = Tracker.RetroHunt(task_uuid)
+    res = Tracker.api_check_retro_hunt_acl(retro_hunt, user_org, user_id, user_role, 'view')
+    if res:
+        return res
+
+    dict_task = retro_hunt.get_meta(options={'creator', 'date', 'description', 'level', 'org', 'org_name', 'progress', 'filters', 'nb_objs', 'objs_stats','tags'})
+    rule_content = Tracker.get_yara_rule_content(dict_task['rule'])
+    dict_task['filters'] = json.dumps(dict_task['filters'], indent=4)
+
+    dict_task['objs'] = []
+    if objs:
+        options = {'last_full_date', 'pdf'}
+        for ob in retro_hunt.get_objs():
+            obj_type, obj_subtype, obj_id = ob
+            obj_meta = ail_objects.get_object_meta(obj_type, obj_subtype, obj_id, options=options, flask_context=True)
+            obj_meta['gid'] = f'{obj_type}:{obj_subtype}:{obj_id}'
+            obj_meta['tracker_status'] = retro_hunt.get_obj_status(obj_meta['gid'])
+            dict_task['objs'].append(obj_meta)
+
+    return render_template("show_retro_hunt.html", dict_task=dict_task,
+                           rule_content=rule_content,
+                           bootstrap_label=bootstrap_label)
+
+
+
+@hunters.route('/retro_hunt/task/export/markdown', methods=['GET'])
+@login_required
+@login_read_only
+def retro_hunt_export_markdown():
+    user_org = current_user.get_org()
+    user_id = current_user.get_user_id()
+    user_role = current_user.get_role()
+
+    task_uuid = request.args.get('uuid', None)
+    res = Tracker.api_check_retro_hunt_task_uuid(task_uuid)
+    if res:
+        return create_json_response(res[0], res[1])
+
+    retro_hunt = Tracker.RetroHunt(task_uuid)
+    res = Tracker.api_check_retro_hunt_acl(retro_hunt, user_org, user_id, user_role, 'view')
+    if res:
+        return res
+
+    retro_hunt_meta = retro_hunt.get_meta(options={'creator', 'date', 'description', 'filters', 'tags'})
+    rule_content = Tracker.get_yara_rule_content(retro_hunt_meta['rule'])
+
+    exported_objects = []
+    for obj_type, obj_subtype, obj_id in sorted(retro_hunt.get_objs()):
+        obj = ail_objects.get_object(obj_type, obj_subtype, obj_id)
+        meta = obj.get_meta(options={'last_full_date', 'link', 'protocol', 'tags'}, flask_context=False)
+        content = markdown_report.normalize_content(obj.get_content())
+        matches = module_extractor.get_tracker_match(user_org, user_id, obj, content, match_uuid=task_uuid)
+        if matches:
+            matches = sorted(matches, key=lambda match: match[0])
+            matches = module_extractor.merge_overlap(matches)
+
+        exported_objects.append({
+            'meta': meta,
+            'date_label': markdown_report.format_object_date(meta),
+            'infoleak_tags': markdown_report.get_infoleak_taxonomy_tags(meta.get('tags')),
+            'excerpts': markdown_report.build_match_excerpts(content, matches, context_lines=5),
+        })
+
+    markdown_document = markdown_report.build_retro_hunt_markdown(root_url, retro_hunt_meta, rule_content, exported_objects)
+    filename = markdown_report.get_retro_hunt_export_filename(retro_hunt_meta)
+
+    response = Response(markdown_document, mimetype='text/markdown')
+    response.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+@hunters.route('/retro_hunt/add', methods=['GET', 'POST'])
+@login_required
+@login_user
+def retro_hunt_add_task():
+    if request.method == 'POST':
+        level = request.form.get("level", 1)
+        name = request.form.get("name", '')
+        description = request.form.get("description", '')
+        timeout = request.form.get("timeout", 30)
+        source = request.form.get("source", '').strip()
+        if not source:
+            source = 'manual'
+        # TAGS
+        tags = request.form.get("tags", [])
+        taxonomies_tags = request.form.get('taxonomies_tags')
+        if taxonomies_tags:
+            try:
+                taxonomies_tags = json.loads(taxonomies_tags)
+            except:
+                taxonomies_tags = []
+        else:
+            taxonomies_tags = []
+        galaxies_tags = request.form.get('galaxies_tags')
+        if galaxies_tags:
+            try:
+                galaxies_tags = json.loads(galaxies_tags)
+            except:
+                galaxies_tags = []
+        else:
+            galaxies_tags = []
+        # custom tags
+        if tags:
+            tags = tags.split()
+            escaped_tags = []
+            for tag in tags:
+                escaped_tags.append(escape(tag))
+            tags = escaped_tags
+        else:
+            tags = []
+        tags = tags + taxonomies_tags + galaxies_tags
+        # mails = request.form.get("mails", [])
+        # if mails:
+        #     mails = mails.split()
+
+        # FILTERS
+        filters = {}
+        for obj_type in Tracker.get_objects_tracked():
+            new_filter = request.form.get(f'{obj_type}_obj')
+            if new_filter == 'on':
+                filters[obj_type] = {}
+                # Date From
+                date_from = request.form.get(f'date_from_{obj_type}', '').replace('-', '')
+                if date_from:
+                    filters[obj_type]['date_from'] = date_from
+                # Date to
+                date_to = request.form.get(f'date_to_{obj_type}', '').replace('-', '')
+                if date_to:
+                    filters[obj_type]['date_to'] = date_to
+                # Mimetypes
+                mimetypes = request.form.get(f'mimetypes_{obj_type}', [])
+                if mimetypes:
+                    mimetypes = json.loads(mimetypes)
+                    filters[obj_type]['mimetypes'] = mimetypes
+                # Sources
+                sources = request.form.get(f'sources_{obj_type}', [])
+                if sources:
+                    sources = json.loads(sources)
+                    if sources:
+                        filters[obj_type]['sources'] = sources
+                # Subtypes
+                for obj_subtype in ail_core.get_object_all_subtypes(obj_type):
+                    subtype = request.form.get(f'filter_{obj_type}_{obj_subtype}')
+                    if subtype == 'on':
+                        if 'subtypes' not in filters[obj_type]:
+                            filters[obj_type]['subtypes'] = []
+                        filters[obj_type]['subtypes'].append(obj_subtype)
+
+        # YARA #
+        yara_custom_rule =  request.form.get("yara_custom_rule")
+        rule = yara_custom_rule
+        rule_type='yara_custom'
+
+        user_org = current_user.get_org()
+        user_id = current_user.get_user_id()
+
+        input_dict = {"level": level, "name": name, "description": description, "creator": user_id,
+                      "rule": rule, "type": rule_type,
+                      "tags": tags, "filters": filters, "timeout": timeout,  # "mails": mails
+                      "source": source,
+                      }
+
+        res = Tracker.api_create_retro_hunt_task(input_dict, user_org, user_id)
+        if res[1] == 200:
+            return redirect(url_for('hunters.retro_hunt_show_task', uuid=res[0].get('uuid')))
+        else:
+            ## TODO: use modal
+            return create_json_response(res[0], res[1])
+    else:
+        tracker_uuid = request.args.get('tracker_uuid')
+        if tracker_uuid:
+            user_org = current_user.get_org()
+            user_id = current_user.get_user_id()
+            user_role = current_user.get_role()
+            res = Tracker.api_check_tracker_acl(tracker_uuid, user_org, user_id, user_role, 'view')
+            if res:  # invalid access
+                return create_json_response(res[0], res[1])
+
+            tracker = Tracker.Tracker(tracker_uuid)
+            new_description = tracker.get_description()
+            new_level = tracker.get_level()
+            new_rule = tracker.get_rule_content()
+            new_filters = tracker.get_filters()
+        else:
+            new_description = None
+            new_level = None
+            new_rule = None
+            new_filters = {'message', 'ocr', 'item'}
+
+        return render_template("add_retro_hunt_task.html",
+                               tags_selector_data=Tag.get_tags_selector_data(),
+                               items_sources=item_basic.get_all_items_sources(r_list=True),
+                               new_description=new_description, new_level=new_level, new_rule=new_rule,
+                               new_filters=new_filters)
+
+@hunters.route('/retro_hunt/task/pause', methods=['GET'])
+@login_required
+@login_user
+def retro_hunt_pause_task():
+    user_org = current_user.get_org()
+    user_id = current_user.get_user_id()
+    user_role = current_user.get_role()
+    task_uuid = request.args.get('uuid', None)
+    res = Tracker.api_pause_retro_hunt_task(user_org, user_id, user_role, task_uuid)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    if request.referrer:
+        return redirect(request.referrer)
+    else:
+        return redirect(url_for('hunters.retro_hunt_all_tasks'))
+
+@hunters.route('/retro_hunt/task/resume', methods=['GET'])
+@login_required
+@login_user
+def retro_hunt_resume_task():
+    user_org = current_user.get_org()
+    user_id = current_user.get_user_id()
+    user_role = current_user.get_role()
+    task_uuid = request.args.get('uuid', None)
+    res = Tracker.api_resume_retro_hunt_task(user_org, user_id, user_role, task_uuid)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    if request.referrer:
+        return redirect(request.referrer)
+    else:
+        return redirect(url_for('hunters.retro_hunt_all_tasks'))
+
+@hunters.route('/retro_hunt/task/delete', methods=['GET'])
+@login_required
+@login_admin
+def retro_hunt_delete_task():
+    user_org = current_user.get_org()
+    user_id = current_user.get_id()
+    user_role = current_user.get_role()
+    task_uuid = request.args.get('uuid', None)
+    res = Tracker.api_delete_retro_hunt_task(user_org, user_id, user_role, task_uuid)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    return redirect(url_for('hunters.retro_hunt_all_tasks'))
+
+
+@hunters.route('/retro_hunt/objects/report', methods=['GET'])
+@login_required
+@login_admin
+def retro_hunt_objects_report():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    task_uuid = request.args.get('uuid', None)
+    res = Tracker.api_check_retro_hunt_task_uuid(task_uuid)
+    if res:
+        return create_json_response(res[0], res[1])
+    retro_hunt = Tracker.RetroHunt(task_uuid)
+    res = Tracker.api_check_retro_hunt_acl(retro_hunt, user_org, user_id, user_role, 'view')
+    if res:
+        return res
+
+    meta = retro_hunt.get_meta(options={'creator', 'date', 'description', 'progress', 'filters', 'nb_objs', 'tags'})
+    yara_rule_content = Tracker.get_yara_rule_content(meta['rule'])
+    meta['filters'] = json.dumps(meta['filters'], indent=4)
+
+    # tracker = Tracker.Tracker(tracker_uuid)
+    # meta = tracker.get_meta(options={'description', 'sparkline', 'tags', 'nb_objs'})
+
+    chats, messages = chats_viewer.get_message_report(retro_hunt.get_objs())
+    if messages:
+        meta['first_seen'] = messages[0]['full_date']
+        if len(messages) > 1:
+            meta['last_seen'] = messages[-1]['full_date']
+        else:
+            meta['last_seen'] = meta['first_seen']
+
+    meta['date'] = Date.get_current_utc_full_time()
+    meta['type'] = 'retro_hunt'
+
+    # TODO
+    #       - Filter duplicates messages
+    #       - numbers of messages by chats
+
+    return render_template("messages_report.html", meta=meta, yara_rule_content=yara_rule_content,
+                           chats=chats, messages=messages, bootstrap_label=bootstrap_label, force_full_image=True)
+
+
+@hunters.route('/retro_hunt/object/status/done', methods=['GET'])
+@login_required
+@login_user_no_api
+def retro_hunt_object_status_done():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    retro_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_retro_hunt_object_status_done({'uuid': retro_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.retro_hunt_show_task', uuid=retro_uuid))
+
+@hunters.route('/retro_hunt/object/status/unread', methods=['GET'])
+@login_required
+@login_user_no_api
+def retro_hunt_object_status_unread():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    retro_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_retro_hunt_object_status_unread({'uuid': retro_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.retro_hunt_show_task', uuid=retro_uuid))
+
+
+@hunters.route('/retro_hunt/object/status/reject', methods=['GET'])
+@login_required
+@login_user_no_api
+def retro_hunt_object_status_reject():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    retro_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_retro_hunt_object_status_reject({'uuid': retro_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.retro_hunt_show_task', uuid=retro_uuid))
+
+@hunters.route('/retro_hunt/object/status/read', methods=['POST'])
+@login_required
+@login_user_no_api
+def retro_hunt_object_status_read():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    retro_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+
+    res = Tracker.api_retro_hunt_object_status_read({'uuid': retro_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    return create_json_response(res[0], res[1])
+
+@hunters.route('/retro_hunt/object/remove', methods=['GET'])
+@login_required
+@login_user_no_api
+def retro_hunt_object_remove():
+    user_id = current_user.get_user_id()
+    user_org = current_user.get_org()
+    user_role = current_user.get_role()
+    retro_uuid = request.args.get('uuid')
+    object_global_id = request.args.get('gid')
+    res = Tracker.api_retro_hunt_remove_object({'uuid': retro_uuid, 'gid': object_global_id}, user_org, user_id, user_role)
+    if res[1] != 200:
+        return create_json_response(res[0], res[1])
+    else:
+        if request.referrer:
+            return redirect(request.referrer)
+        else:
+            return redirect(url_for('hunters.retro_hunt_show_task', uuid=retro_uuid))
+
+##  - -  ##

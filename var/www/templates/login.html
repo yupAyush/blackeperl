@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+	<title>Null Anonymity</title>
+	<link rel="icon" href="{{ url_for('static', filename='image/ail-icon.png')}}">
+	<!-- Core CSS -->
+	<link href="{{ url_for('static', filename='css/bootstrap4.min.css') }}" rel="stylesheet">
+	<link href="{{ url_for('static', filename='css/font-awesome.min.css') }}" rel="stylesheet">
+	<link href="{{ url_for('static', filename='css/modern-ui.css') }}" rel="stylesheet">
+
+	<!-- JS -->
+	<script src="{{ url_for('static', filename='js/jquery.js')}}"></script>
+	<script src="{{ url_for('static', filename='js/bootstrap4.min.js')}}"></script>
+
+	<style>
+	html, body { height: 100%; }
+	body {
+		display: flex; flex-direction: column;
+		background: var(--page);
+	}
+	.na-auth-strip {
+		display: flex; align-items: center; gap: 14px;
+		padding: 6px 18px;
+		background: var(--band);
+		border-bottom: 1px solid var(--line);
+		font-size: var(--t-xs); color: var(--muted);
+	}
+	.na-auth-wrap { flex: 1; display: grid; place-items: center; padding: 32px 16px; }
+	.na-auth-card {
+		width: 100%; max-width: 372px;
+		background: var(--panel);
+		border: 1px solid var(--line);
+		border-radius: 2px;
+		padding: 26px 28px 24px;
+	}
+	.na-auth-seal { display: flex; align-items: center; gap: 11px; margin-bottom: 20px; }
+	.na-auth-seal .na-seal-name { font-size: var(--t-md); }
+	.na-auth-card h1 {
+		font-size: var(--t-b); font-weight: 600; margin: 0 0 3px;
+	}
+	.na-auth-card .sub {
+		font-size: var(--t-xs); color: var(--faint); margin: 0 0 18px; line-height: 1.5;
+	}
+	.na-auth-card label {
+		display: block; font-size: var(--t-xs); color: var(--muted); margin: 0 0 4px;
+	}
+	.na-auth-card .form-control { margin-bottom: 13px; }
+	.na-auth-card .btn-primary { width: 100%; margin-top: 4px; }
+	.na-auth-note {
+		margin-top: 16px; padding-top: 13px; border-top: 1px solid var(--line-soft);
+		font-size: var(--t-xs); color: var(--faint); line-height: 1.5;
+	}
+	.na-auth-error {
+		border: 1px solid var(--line); border-left: 3px solid var(--alert);
+		background: var(--band-2); color: var(--text);
+		font-size: var(--t-sm); padding: 9px 12px; margin-bottom: 14px;
+	}
+	</style>
+
+</head>
+
+<body>
+
+<div class="na-auth-strip">
+	<span class="na-class-mark">Restricted</span>
+	<span>Authorised investigative use only. Sign-in attempts are recorded.</span>
+</div>
+
+<div class="na-auth-wrap">
+	<form class="na-auth-card" action="{{ url_for('root.login')}}" method="post">
+
+		<div class="na-auth-seal">
+			<svg width="34" height="34" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+				<rect x="2.5" y="2.5" width="23" height="23" stroke="#7B828A"/>
+				<rect x="6.5" y="6.5" width="15" height="15" stroke="#B8BCC0"/>
+				<path d="M14 9.6a2.7 2.7 0 0 1 2.7 2.7v1.1h1v5.2h-7.4v-5.2h1v-1.1A2.7 2.7 0 0 1 14 9.6zm0 1.5a1.2 1.2 0 0 0-1.2 1.2v1.1h2.4v-1.1a1.2 1.2 0 0 0-1.2-1.2z" fill="#565C63"/>
+			</svg>
+			<div>
+				<div class="na-seal-name">Null Anonymity</div>
+				<div class="na-seal-org">Cyber Forensics Wing</div>
+			</div>
+		</div>
+
+		<h1>Sign in</h1>
+		<p class="sub">Console access is limited to accounts issued by the administrator.</p>
+
+		{% if error %}
+			<div class="na-auth-error">{{error}}</div>
+		{% endif %}
+
+		<label for="inputEmail">Email address</label>
+		<input type="email" id="inputEmail" name="username" class="form-control" placeholder="name@example.org" required autofocus>
+
+		<label for="inputPassword">Password</label>
+		<input type="password" id="inputPassword" name="password" class="form-control {% if error %}is-invalid{% endif %}" placeholder="••••••••" required>
+
+		<input type="text" id="next_page" name="next_page" value="{{next_page}}" hidden>
+
+		<button class="btn btn-primary btn-lg" type="submit">Sign in</button>
+
+		<div class="na-auth-note">
+			Every query made from this console is attributed to the signed-in account and retained in the audit record.
+		</div>
+	</form>
+</div>
+
+</body>
+</html>

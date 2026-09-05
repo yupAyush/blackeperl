@@ -1,0 +1,1195 @@
+{% extends 'deanonymization/base.html' %}
+{% block title_tag %}<title>De-anonymization — Null Anonymity</title>{% endblock %}
+{% block header_title %}COMMAND THEATER{% endblock %}
+{% block nav_home %}active{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Command Theater Grid Layout ──────────────────────────────────── */
+  .telemetry-deck-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .theater-split-grid {
+    display: grid;
+    grid-template-columns: 1.85fr 1.15fr;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+
+  .theater-bottom-grid {
+    display: grid;
+    grid-template-columns: 1.9fr 1.1fr;
+    gap: 14px;
+  }
+
+  /* ── Geospatial Theater Styles ────────────────────────────────────── */
+  .map-theater-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-panel);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    height: 580px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .map-control-bar {
+    background: #0a0d14;
+    border-bottom: 1px solid var(--border-panel);
+    padding: 8px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    z-index: 10;
+  }
+
+  .map-probe-box {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #0e131d;
+    border: 1px solid #1f2a3e;
+    border-radius: 3px;
+    padding: 2px 8px;
+    flex: 1;
+    max-width: 380px;
+  }
+
+  .map-probe-box input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f1f5f9;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    width: 100%;
+  }
+
+  .map-layer-btn {
+    background: #111724;
+    border: 1px solid #1f2b3e;
+    color: #94a3b8;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.12s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .map-layer-btn:hover {
+    background: #172033;
+    color: #1A1D21;
+    border-color: #2e3f5c;
+  }
+
+  .map-layer-btn.active {
+    background: #0369a1;
+    color: #1A1D21;
+    border-color: #38bdf8;
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+  }
+
+  #mapboxThreatCanvas {
+    width: 100%;
+    flex: 1;
+    background: #06080d;
+    position: relative;
+  }
+
+  /* Map overlay reticle coordinates */
+  .map-hud-readout {
+    position: absolute;
+    bottom: 12px;
+    left: 14px;
+    background: rgba(10, 14, 22, 0.88);
+    border: 1px solid #1d2739;
+    border-radius: 3px;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #94a3b8;
+    pointer-events: none;
+    z-index: 10;
+    display: flex;
+    gap: 12px;
+  }
+
+  /* ── Live Ingestion Stream Panel ──────────────────────────────────── */
+  .feed-stream-panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-panel);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    height: 580px;
+    overflow: hidden;
+  }
+
+  .feed-filter-bar {
+    background: #0a0d14;
+    border-bottom: 1px solid var(--border-panel);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .feed-filter-pill {
+    background: #101622;
+    border: 1px solid #1c2637;
+    color: #94a3b8;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+
+  .feed-filter-pill:hover,
+  .feed-filter-pill.active {
+    background: #172235;
+    color: #38bdf8;
+    border-color: #283a54;
+  }
+
+  .feed-list-scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .feed-entry-card {
+    background: #0a0d15;
+    border: 1px solid #182132;
+    border-left: 3px solid #0284c7;
+    border-radius: 3px;
+    padding: 10px 12px;
+    transition: border-color 0.15s ease;
+  }
+
+  .feed-entry-card:hover {
+    border-color: #26354f;
+    background: #0d121c;
+  }
+
+  .feed-entry-card.critical-border {
+    border-left-color: #ef4444;
+  }
+
+  .feed-entry-card.warning-border {
+    border-left-color: #f59e0b;
+  }
+
+  .feed-entry-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+
+  .feed-source-tag {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .feed-entry-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 4px;
+    line-height: 1.35;
+  }
+
+  .feed-entry-desc {
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+
+  .feed-entry-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .btn-feed-locate {
+    background: #131a28;
+    border: 1px solid #233147;
+    color: #38bdf8;
+    padding: 2px 7px;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 9.5px;
+    transition: all 0.12s;
+  }
+
+  .btn-feed-locate:hover {
+    background: #0284c7;
+    color: #1A1D21;
+    border-color: #38bdf8;
+  }
+
+  /* ── Rapid Audit Terminal Panel ───────────────────────────────────── */
+  .terminal-box {
+    background: #06080d;
+    border: 1px solid #161f2e;
+    border-radius: 3px;
+    padding: 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #94a3b8;
+    min-height: 180px;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+
+  .terminal-line {
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+
+  .terminal-line.success {
+    color: #34d399;
+  }
+
+  .terminal-line.warning {
+    color: #fbbf24;
+  }
+
+  .terminal-line.alert {
+    color: #f87171;
+  }
+
+  @media (max-width: 1400px) {
+    .telemetry-deck-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .theater-split-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .theater-bottom-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .telemetry-deck-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}
+
+{% block tab_overview %}active{% endblock %}
+{% block page_content %}
+
+<!-- ════ TIER 1: TACTICAL TELEMETRY DECK (6 METRICS) ════════════════════════ -->
+<div class="telemetry-deck-grid">
+  <!-- Metric 1: Tracked Actors -->
+  <div class="metric-card-dense">
+    <div class="metric-top-meta">
+      <span class="metric-title">TARGET PERSONAS</span>
+      <span class="tactical-pill pill-critical">{{ critical_actors }} CRIT</span>
+    </div>
+    <div class="metric-value-huge">{{ total_actors }}</div>
+    <div class="metric-subtext">
+      <i class="fas fa-user-secret text-red mr-1"></i> Monitored Dark Web Dossiers
+    </div>
+  </div>
+
+  <!-- Metric 2: Unmasked Origins -->
+  <div class="metric-card-dense">
+    <div class="metric-top-meta">
+      <span class="metric-title">UNMASKED ORIGINS</span>
+      <span class="tactical-pill pill-cyan">{{ avg_confidence }}% CONF</span>
+    </div>
+    <div class="metric-value-huge text-cyan">{{ total_unmasked_services }}</div>
+    <div class="metric-subtext">
+      <i class="fas fa-server text-cyan mr-1"></i> Clearnet Server Attributions
+    </div>
+  </div>
+
+  <!-- Metric 3: Live Ingested IOCs -->
+  <div class="metric-card-dense">
+    <div class="metric-top-meta">
+      <span class="metric-title">LIVE THREAT IOCs</span>
+      <span class="tactical-pill pill-warning">REAL-TIME</span>
+    </div>
+    <div class="metric-value-huge text-amber" id="metricLiveIocCount">{{ feed_stats.total_indicators }}</div>
+    <div class="metric-subtext">
+      <i class="fas fa-network-wired text-amber mr-1"></i> SANS ISC + Emerging Threats
+    </div>
+  </div>
+
+  <!-- Metric 4: Vulnerability Advisories -->
+  <div class="metric-card-dense">
+    <div class="metric-top-meta">
+      <span class="metric-title">THREAT ADVISORIES</span>
+      <span class="tactical-pill pill-info">CISA KEV</span>
+    </div>
+    <div class="metric-value-huge" id="metricLiveAdvCount">{{ feed_stats.total_advisories }}</div>
+    <div class="metric-subtext">
+      <i class="fas fa-bug text-info mr-1"></i> Known Exploited CVEs Catalog
+    </div>
+  </div>
+
+  <!-- Metric 5: Active Map Nodes -->
+  <div class="metric-card-dense">
+    <div class="metric-top-meta">
+      <span class="metric-title">GEOLOCATED NODES</span>
+      <span class="tactical-pill pill-success">MAPBOX GL</span>
+    </div>
+    <div class="metric-value-huge text-green" id="metricMapNodesCount">--</div>
+    <div class="metric-subtext">
+      <i class="fas fa-location-crosshairs text-green mr-1"></i> Real-time Coordinate Pins
+    </div>
+  </div>
+
+  <!-- Metric 6: Operational Defense Status -->
+  <div class="metric-card-dense">
+    <div class="metric-top-meta">
+      <span class="metric-title">SYSTEM POSTURE</span>
+      <span class="tactical-pill pill-warning">DEFCON 2</span>
+    </div>
+    <div class="metric-value-huge" style="font-size:1.35rem; color:#f59e0b; padding-top:4px;">
+      TLP:AMBER
+    </div>
+    <div class="metric-subtext">
+      <i class="fas fa-shield-halved text-amber mr-1"></i> Attribution Engine Active
+    </div>
+  </div>
+</div>
+
+<!-- ════ TIER 2: GEOSPATIAL COMMAND THEATER & LIVE INGESTION WIRE ═══════════ -->
+<div class="theater-split-grid">
+
+  <!-- Left Panel: Mapbox Tactical Theater -->
+  <div class="map-theater-panel">
+    <!-- Map Control Bar -->
+    <div class="map-control-bar">
+      <div class="panel-header-title">
+        <span class="prefix">//</span>
+        <span>THEATER-01: REAL-TIME GEOSPATIAL ATTRIBUTION & C2 MAPPING</span>
+      </div>
+
+      <!-- Real-Time IP Geolocation Probe Input -->
+      <div class="map-probe-box">
+        <i class="fas fa-search-location text-cyan" style="font-size:11px;"></i>
+        <input type="text" id="liveGeoProbeInput" placeholder="Probe IP / Host (e.g. 185.220.101.45, 1.1.1.1)...">
+        <button type="button" class="btn-feed-locate" onclick="runLiveGeoProbe()">
+          <span>LOCATE</span>
+        </button>
+      </div>
+
+      <!-- Map Layer Toggles -->
+      <div style="display:flex; gap:6px;">
+        <button type="button" class="map-layer-btn active" id="toggleHeatmapBtn" onclick="toggleHeatmapLayer()">
+          <i class="fas fa-fire-flame-curved text-amber"></i>
+          <span>HEATMAP</span>
+        </button>
+        <button type="button" class="map-layer-btn active" id="toggleOriginsBtn"
+          onclick="toggleMarkerCategory('actor_origin')">
+          <i class="fas fa-crosshairs text-red"></i>
+          <span>ORIGINS</span>
+        </button>
+        <button type="button" class="map-layer-btn active" id="toggleC2Btn" onclick="toggleMarkerCategory('live_c2')">
+          <i class="fas fa-bolt text-cyan"></i>
+          <span>C2 NODES</span>
+        </button>
+        <button type="button" class="map-layer-btn" onclick="resetMapCenter()">
+          <i class="fas fa-compress"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mapbox GL JS Container -->
+    <div id="mapboxThreatCanvas"></div>
+
+    <!-- Map HUD Readout Overlay -->
+    <div class="map-hud-readout">
+      <span>GRID: <strong class="text-cyan" id="hudCoords">20.00° N, 0.00° E</strong></span>
+      <span>ZOOM: <strong id="hudZoom">2.2</strong></span>
+      <span>ENGINE: <strong class="text-green">MAPBOX GL WEBGL</strong></span>
+      <span id="mapProbeFeedback" style="color:#38bdf8;"></span>
+    </div>
+  </div>
+
+  <!-- Right Panel: Live Ingestion Wire -->
+  <div class="feed-stream-panel">
+    <div class="command-panel-header">
+      <div class="panel-header-title">
+        <span class="prefix">//</span>
+        <span>LIVE INGESTION WIRE</span>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <span class="tactical-pill pill-success" style="font-size:9.5px;">POLLING</span>
+        <button type="button" class="hud-btn hud-btn-ghost" style="height:26px; padding:0 8px; font-size:10px;"
+          onclick="triggerFeedSync()">
+          <i class="fas fa-sync-alt" id="panelSyncIcon"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Feed Filter Bar -->
+    <div class="feed-filter-bar">
+      <div style="display:flex; gap:4px;">
+        <button type="button" class="feed-filter-pill active" onclick="filterFeedStream('ALL', this)">ALL</button>
+        <button type="button" class="feed-filter-pill" onclick="filterFeedStream('C2', this)">C2 NODES</button>
+        <button type="button" class="feed-filter-pill" onclick="filterFeedStream('CVE', this)">VULNERABILITIES</button>
+        <button type="button" class="feed-filter-pill" onclick="filterFeedStream('TOR', this)">TOR SCANS</button>
+      </div>
+      <span class="mono" style="font-size:10px; color:#64748b;" id="feedItemCounter">Showing live items</span>
+    </div>
+
+    <!-- Scrollable Feed List -->
+    <div class="feed-list-scroll" id="liveFeedScrollContainer">
+      <!-- Live Advisories (CISA KEV + The Hacker News) -->
+      {% for adv in live_advisories %}
+      <div class="feed-entry-card warning-border feed-item-cve">
+        <div class="feed-entry-top">
+          <span class="feed-source-tag"><i class="fas fa-shield mr-1 text-amber"></i> {{ adv.source }}</span>
+          <span class="tactical-pill pill-warning">{{ adv.severity }}</span>
+        </div>
+        <div class="feed-entry-title">
+          <a href="{{ adv.url }}" target="_blank" style="color:#1A1D21; text-decoration:none;">
+            {{ adv.title }}
+          </a>
+        </div>
+        <div class="feed-entry-desc">{{ adv.summary }}</div>
+        <div class="feed-entry-meta">
+          <span>{{ adv.cve_id }}</span>
+          <span>{{ adv.published_at }}</span>
+        </div>
+      </div>
+      {% endfor %}
+
+      <!-- Live Threat Indicators (SANS ISC + Emerging Threats) -->
+      {% for ind in live_indicators %}
+      <div class="feed-entry-card critical-border feed-item-c2">
+        <div class="feed-entry-top">
+          <span class="feed-source-tag"><i class="fas fa-network-wired mr-1 text-cyan"></i> {{ ind.source }}</span>
+          <span
+            class="tactical-pill {% if ind.threat_level == 'CRITICAL' %}pill-critical{% else %}pill-warning{% endif %}">
+            {{ ind.threat_level }}
+          </span>
+        </div>
+        <div class="feed-entry-title">
+          <span class="mono text-cyan">{{ ind.ip }}</span> &mdash; {{ ind.malware_family }}
+        </div>
+        <div class="feed-entry-desc">
+          Origin: {{ ind.city }}, {{ ind.country }} | ISP: {{ ind.isp }} ({{ ind.asn }})
+        </div>
+        <div class="feed-entry-meta">
+          <span>Attacks: {{ ind.attacks_count }}</span>
+          <button type="button" class="btn-feed-locate"
+            onclick="locateAndFlyIP('{{ ind.ip }}', {{ ind.lat }}, {{ ind.lon }}, '{{ ind.ip }} - {{ ind.malware_family }}')">
+            <i class="fas fa-crosshairs"></i> FLY MAP
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- ════ TIER 3: THREAT ACTOR ROSTER & RAPID MISCONFIG AUDITOR ══════════════ -->
+<div class="theater-bottom-grid">
+
+  <!-- Left Panel: Threat Actor Dossier Matrix -->
+  <div class="command-panel">
+    <div class="command-panel-header">
+      <div class="panel-header-title">
+        <span class="prefix">//</span>
+        <span>TRACKED DARK WEB PERSONAS & ATTRIBUTION DOSSIERS</span>
+      </div>
+
+      <!-- Filter Bar -->
+      <div style="display:flex; gap:8px; align-items:center;">
+        <div class="feed-probe-box"
+          style="background:#090d16; border:1px solid #1c2637; padding:2px 8px; border-radius:3px; display:flex; align-items:center; gap:6px;">
+          <i class="fas fa-filter text-muted" style="font-size:10px;"></i>
+          <input type="text" id="rosterSearchFilter" onkeyup="filterRosterTable()"
+            placeholder="Filter dossier alias, IP..."
+            style="background:transparent; border:none; color:#1A1D21; font-family:var(--font-mono); font-size:11px; outline:none; width:150px;">
+        </div>
+
+        <div style="display:flex; gap:4px;">
+          <a href="{{ url_for('deanonymization.dashboard') }}"
+            class="feed-filter-pill {% if not selected_risk %}active{% endif %}">ALL</a>
+          <a href="{{ url_for('deanonymization.dashboard', risk='CRITICAL') }}"
+            class="feed-filter-pill {% if selected_risk == 'CRITICAL' %}active{% endif %}">CRITICAL</a>
+          <a href="{{ url_for('deanonymization.dashboard', risk='HIGH') }}"
+            class="feed-filter-pill {% if selected_risk == 'HIGH' %}active{% endif %}">HIGH</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+      <table class="tactical-table" id="actorRosterTable">
+        <thead>
+          <tr>
+            <th>Primary Alias</th>
+            <th>Category</th>
+            <th>Risk</th>
+            <th>Confidence</th>
+            <th>Unmasked Clearnet Origin</th>
+            <th>Wallets</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in actors %}
+          <tr class="roster-row" data-alias="{{ a.get_primary_alias()|lower }}" data-risk="{{ a.get_risk_level() }}">
+            <td>
+              <a href="{{ url_for('deanonymization.actor_profile', actor_id=a.actor_id) }}"
+                style="color:#1A1D21; font-weight:700; text-decoration:none; display:flex; align-items:center; gap:8px;">
+                <span
+                  style="width:24px; height:24px; border-radius:3px; background:#121927; border:1px solid #233149; display:inline-flex; align-items:center; justify-content:center; color:#38bdf8; font-size:11px;">
+                  <i class="fas fa-mask"></i>
+                </span>
+                <span>{{ a.get_primary_alias() }}</span>
+              </a>
+            </td>
+            <td><span class="text-dimmer mono" style="font-size:11px;">{{ a.get_category() }}</span></td>
+            <td>
+              {% if a.get_risk_level() == 'CRITICAL' %}
+              <span class="tactical-pill pill-critical">CRITICAL</span>
+              {% elif a.get_risk_level() == 'HIGH' %}
+              <span class="tactical-pill pill-warning">HIGH</span>
+              {% else %}
+              <span class="tactical-pill pill-info">MEDIUM</span>
+              {% endif %}
+            </td>
+            <td>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <div style="width:50px; height:3px; background:#151d2c; border-radius:2px; overflow:hidden;">
+                  <div style="width:{{ a.get_attribution_confidence() }}%; height:100%; background:#0284c7;"></div>
+                </div>
+                <strong class="mono text-cyan" style="font-size:11.5px;">{{ a.get_attribution_confidence() }}%</strong>
+              </div>
+            </td>
+            <td>
+              {% set infra = a.get_associated_infrastructure() %}
+              {% if infra and infra[0].get('origin_ip') %}
+              {% set origin_ip = infra[0].origin_ip %}
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span class="mono text-amber" style="font-weight:600; font-size:11px;">{{ origin_ip }}</span>
+                <button type="button" class="btn-feed-locate" style="padding:1px 5px; font-size:9px;"
+                  onclick="queryAndFlyIP('{{ origin_ip }}', '{{ a.get_primary_alias() }} (Origin)')"
+                  title="Center on Map">
+                  <i class="fas fa-crosshairs"></i>
+                </button>
+              </div>
+              {% else %}
+              <span class="mono text-muted" style="font-size:10.5px;">Scanning...</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="mono text-dimmer" style="font-size:11px;">
+                {{ a.get_crypto_wallets()|length }} Wallets
+              </span>
+            </td>
+            <td>
+              <div style="display:flex; gap:4px;">
+                <a href="{{ url_for('deanonymization.actor_profile', actor_id=a.actor_id) }}" class="btn-feed-locate"
+                  title="Dossier">
+                  <i class="fas fa-id-card"></i>
+                </a>
+                <a href="{{ url_for('deanonymization.relationship_graph', actor_id=a.actor_id) }}"
+                  class="btn-feed-locate" title="Graph Network">
+                  <i class="fas fa-project-diagram"></i>
+                </a>
+                <button type="button" class="btn-feed-locate" title="Audit Origin"
+                  onclick="auditSpecificTarget('{{ a.get_primary_alias() }}', '{{ infra[0].onion_domain if infra else '' }}')">
+                  <i class="fas fa-spider"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Right Panel: Rapid Tor Misconfiguration Auditor Terminal -->
+  <div class="command-panel" style="display:flex; flex-direction:column; justify-content:space-between;">
+    <div class="command-panel-header">
+      <div class="panel-header-title">
+        <span class="prefix">//</span>
+        <span>RAPID TOR MISCONFIGURATION AUDITOR</span>
+      </div>
+      <a href="{{ url_for('deanonymization.misconfig_scanner_page') }}" class="feed-filter-pill"
+        style="text-decoration:none;">
+        FULL SUITE <i class="fas fa-arrow-up-right-from-square ml-1" style="font-size:9px;"></i>
+      </a>
+    </div>
+
+    <div class="command-panel-body" style="flex:1; display:flex; flex-direction:column; gap:10px;">
+      <!-- Rapid Audit Input Form -->
+      <div style="display:flex; gap:6px;">
+        <input type="text" id="rapidAuditInput" placeholder="Target .onion URL (e.g. darkspectrelk7v43.onion)..."
+          value="darkspectrelk7v43.onion"
+          style="flex:1; background:#070a10; border:1px solid var(--border-panel); padding:6px 10px; color:#1A1D21; font-family:var(--font-mono); font-size:11.5px; border-radius:3px; outline:none;">
+        <button type="button" class="hud-btn hud-btn-primary" style="height:32px;" id="rapidAuditBtn"
+          onclick="runRapidAudit()">
+          <i class="fas fa-play" style="font-size:10px;"></i>
+          <span>PROBE</span>
+        </button>
+      </div>
+
+      <!-- Live Execution Log Terminal -->
+      <div class="terminal-box" id="rapidAuditTerminal">
+        <div class="terminal-line text-dimmer">// READY: Enter darknet hidden service address to audit origin
+          misconfigurations.</div>
+        <div class="terminal-line text-dimmer">// Modules: Apache status, TLS SANs, Favicon Murmur3, Git/Env exposure.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // ── 1. Mapbox GL JS Command Theater Initialization ─────────────────────
+  let threatMap = null;
+  let mapMarkers = [];
+  let mapPointsData = [];
+  let heatmapEnabled = true;
+
+  // Tactical Dark Style Specification (Runs 100% reliably in all environments)
+  const TACTICAL_LIGHT_STYLE = {
+    version: 8,
+    name: 'Null Anonymity Tactical Light',
+    sources: {
+      'carto-light': {
+        type: 'raster',
+        tiles: [
+          'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+          'https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+          'https://c.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png',
+          'https://d.basemaps.cartocdn.com/light_all/{z}/{x}/{y}@2x.png'
+        ],
+        tileSize: 256,
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+      }
+    },
+    layers: [
+      {
+        id: 'carto-light-base',
+        type: 'raster',
+        source: 'carto-light',
+        minzoom: 0,
+        maxzoom: 20
+      }
+    ]
+  };
+
+  // Mapbox token is injected at deploy time, never hard-coded in the repo.
+  // Set it via  <meta name="mapbox-token" content="pk...">  or  window.MAPBOX_TOKEN.
+  // When absent, the theater runs entirely on the self-hosted CARTO raster style.
+  var MAPBOX_TOKEN = (
+    (typeof window !== 'undefined' && window.MAPBOX_TOKEN) ||
+    (document.querySelector('meta[name="mapbox-token"]') || {}).content ||
+    ''
+  ).trim();
+
+  function initMapboxTheater() {
+    var useMapbox = MAPBOX_TOKEN.indexOf('pk.') === 0;
+    if (useMapbox) { mapboxgl.accessToken = MAPBOX_TOKEN; }
+
+    threatMap = new mapboxgl.Map({
+      container: 'mapboxThreatCanvas',
+      style: useMapbox ? 'mapbox://styles/mapbox/dark-v11' : TACTICAL_LIGHT_STYLE,
+      center: [20.0, 48.0], // Centered over Europe/Eurasia threat theater
+      zoom: 2.3,
+      pitch: 15,
+      bearing: 0,
+      attributionControl: false
+    });
+
+    // If the hosted Mapbox style cannot load (bad token, quota, offline),
+    // fall back to the self-hosted CARTO raster style so the theater never
+    // renders blank.
+    let _fallbackApplied = false;
+    threatMap.on('error', function (e) {
+      const msg = (e && e.error && (e.error.message || e.error.status)) || '';
+      const styleFailed = /style|token|401|403|429|Unauthorized|Forbidden/i.test(String(msg));
+      if (!_fallbackApplied && styleFailed) {
+        _fallbackApplied = true;
+        console.warn('Mapbox style failed, falling back to CARTO raster:', msg);
+        threatMap.setStyle(TACTICAL_LIGHT_STYLE);
+      }
+    });
+
+    // Add navigation control
+    threatMap.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
+
+    // Update coordinate HUD on mouse move
+    threatMap.on('mousemove', function (e) {
+      const coords = e.lngLat;
+      const lat = coords.lat.toFixed(2);
+      const lng = coords.lng.toFixed(2);
+      const hudEl = document.getElementById('hudCoords');
+      if (hudEl) {
+        hudEl.textContent = `${Math.abs(lat)}° ${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lng)}° ${lng >= 0 ? 'E' : 'W'}`;
+      }
+    });
+
+    threatMap.on('zoom', function () {
+      const zoomEl = document.getElementById('hudZoom');
+      if (zoomEl) zoomEl.textContent = threatMap.getZoom().toFixed(1);
+    });
+
+    threatMap.on('load', function () {
+      loadGeospatialPoints();
+    });
+  }
+
+  // ── 2. Load & Plot Real Points on Mapbox ────────────────────────────────
+  function loadGeospatialPoints() {
+    fetch('/deanonymization/api/geo/points')
+      .then(res => res.json())
+      .then(data => {
+        if (!data || !data.features) return;
+        mapPointsData = data.features;
+
+        // Update telemetry counters
+        const nodesCountEl = document.getElementById('telemetryNodesCount');
+        if (nodesCountEl) nodesCountEl.textContent = data.total_points;
+        const metricNodesCountEl = document.getElementById('metricMapNodesCount');
+        if (metricNodesCountEl) metricNodesCountEl.textContent = data.total_points;
+
+        renderMapPins(mapPointsData);
+        setupHeatmapLayer(mapPointsData);
+      })
+      .catch(err => console.error('Error fetching geo points:', err));
+  }
+
+  function renderMapPins(points) {
+    // Clear existing markers
+    mapMarkers.forEach(m => m.remove());
+    mapMarkers = [];
+
+    points.forEach(pt => {
+      if (!pt.lat || !pt.lon || (pt.lat === 0 && pt.lon === 0)) return;
+
+      // Create tactical DOM element for Mapbox Marker
+      const el = document.createElement('div');
+      el.className = 'mapbox-tactical-marker';
+
+      if (pt.type === 'actor_origin' || pt.risk_level === 'CRITICAL') {
+        el.classList.add('marker-critical');
+        el.innerHTML = '<i class="fas fa-crosshairs" style="font-size:10px; color:#fff;"></i>';
+      } else if (pt.type === 'audit_origin' || pt.risk_level === 'HIGH') {
+        el.classList.add('marker-warning');
+        el.innerHTML = '<i class="fas fa-spider" style="font-size:9px; color:#fff;"></i>';
+      } else {
+        el.classList.add('marker-c2');
+        el.innerHTML = '<i class="fas fa-bolt" style="font-size:9px; color:#fff;"></i>';
+      }
+
+      el.setAttribute('data-point-type', pt.type);
+      el.setAttribute('data-point-id', pt.id);
+
+      // Construct Tactical Popup HTML
+      const popupHtml = `
+        <div style="font-family:'Inter', sans-serif;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <span style="font-family:'IBM Plex Mono', monospace; font-size:9px; font-weight:700; color:#38bdf8; text-transform:uppercase;">
+              // ${pt.type.replace('_', ' ').toUpperCase()}
+            </span>
+            <span class="tactical-pill ${pt.risk_level === 'CRITICAL' ? 'pill-critical' : 'pill-warning'}">
+              ${pt.risk_level}
+            </span>
+          </div>
+
+          <div style="font-size:13px; font-weight:700; color:#1A1D21; margin-bottom:4px;">
+            ${pt.title}
+          </div>
+
+          <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:#fbbf24; margin-bottom:8px;">
+            <i class="fas fa-server mr-1"></i> ${pt.ip}
+          </div>
+
+          <div style="font-size:11px; color:#94a3b8; line-height:1.45; margin-bottom:8px; border-top:1px solid #1f293d; padding-top:6px;">
+            <div><strong>Location:</strong> ${pt.location || 'Unknown'}</div>
+            <div><strong>ISP / ASN:</strong> ${pt.isp || 'N/A'} (${pt.asn || 'N/A'})</div>
+            <div><strong>Method:</strong> ${pt.unmasking_method || 'N/A'}</div>
+            <div><strong>Confidence:</strong> <span style="color:#10b981; font-weight:700;">${pt.confidence || 85}%</span></div>
+          </div>
+
+          <div style="display:flex; gap:6px; margin-top:8px;">
+            ${pt.actor_id ? `
+              <a href="/deanonymization/actor/${pt.actor_id}" class="btn-feed-locate" style="text-decoration:none; padding:3px 8px;">
+                <i class="fas fa-id-card"></i> DOSSIER
+              </a>
+              <a href="/deanonymization/graph/${pt.actor_id}" class="btn-feed-locate" style="text-decoration:none; padding:3px 8px;">
+                <i class="fas fa-project-diagram"></i> GRAPH
+              </a>
+            ` : ''}
+            <button type="button" class="btn-feed-locate" style="padding:3px 8px;" onclick="auditSpecificTarget('${pt.ip}', '')">
+              <i class="fas fa-spider"></i> AUDIT
+            </button>
+          </div>
+        </div>
+      `;
+
+      const popup = new mapboxgl.Popup({ offset: 15 }).setHTML(popupHtml);
+
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat([pt.lon, pt.lat])
+        .setPopup(popup)
+        .addTo(threatMap);
+
+      mapMarkers.push(marker);
+    });
+  }
+
+  // ── 3. Native Mapbox Heatmap Layer Setup ───────────────────────────────
+  function setupHeatmapLayer(points) {
+    if (!threatMap) return;
+
+    // Build GeoJSON FeatureCollection
+    const geojsonFeatures = points.map(pt => ({
+      type: 'Feature',
+      properties: {
+        weight: pt.weight || 0.6,
+        type: pt.type
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [pt.lon, pt.lat]
+      }
+    }));
+
+    const geojsonData = {
+      type: 'FeatureCollection',
+      features: geojsonFeatures
+    };
+
+    if (threatMap.getSource('threat-points-source')) {
+      threatMap.getSource('threat-points-source').setData(geojsonData);
+      return;
+    }
+
+    threatMap.addSource('threat-points-source', {
+      type: 'geojson',
+      data: geojsonData
+    });
+
+    // Add Heatmap Layer
+    threatMap.addLayer({
+      id: 'threat-heatmap-layer',
+      type: 'heatmap',
+      source: 'threat-points-source',
+      maxzoom: 9,
+      paint: {
+        // Increase the heatmap weight based on frequency and property weight
+        'heatmap-weight': ['interpolate', ['linear'], ['get', 'weight'], 0, 0, 1, 1],
+        // Increase the heatmap color-intensity by zoom level
+        'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 9, 3],
+        // Color ramp for heatmap (Cyan -> Amber -> Red defense theme)
+        'heatmap-color': [
+          'interpolate',
+          ['linear'],
+          ['heatmap-density'],
+          0, 'rgba(6, 182, 212, 0)',
+          0.2, 'rgba(6, 182, 212, 0.4)',
+          0.4, 'rgba(56, 189, 248, 0.7)',
+          0.7, 'rgba(245, 158, 11, 0.85)',
+          1, 'rgba(239, 68, 68, 0.95)'
+        ],
+        // Adjust the heatmap radius by zoom level
+        'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 12, 9, 28],
+        // Transition from heatmap to circle layer by zoom level
+        'heatmap-opacity': 0.75
+      }
+    });
+  }
+
+  // ── 4. Map Control Functions ───────────────────────────────────────────
+  function toggleHeatmapLayer() {
+    const btn = document.getElementById('toggleHeatmapBtn');
+    if (!threatMap || !threatMap.getLayer('threat-heatmap-layer')) return;
+
+    heatmapEnabled = !heatmapEnabled;
+    threatMap.setLayoutProperty(
+      'threat-heatmap-layer',
+      'visibility',
+      heatmapEnabled ? 'visible' : 'none'
+    );
+    btn.classList.toggle('active', heatmapEnabled);
+  }
+
+  function toggleMarkerCategory(category) {
+    const markers = document.querySelectorAll(`[data-point-type="${category}"]`);
+    markers.forEach(m => {
+      m.style.display = m.style.display === 'none' ? 'flex' : 'none';
+    });
+    event.currentTarget.classList.toggle('active');
+  }
+
+  function resetMapCenter() {
+    if (threatMap) {
+      threatMap.flyTo({
+        center: [20.0, 48.0],
+        zoom: 2.3,
+        pitch: 15,
+        bearing: 0,
+        essential: true
+      });
+    }
+  }
+
+  // ── 5. Real-Time IP Geolocation Probe Execution ────────────────────────
+  function runLiveGeoProbe() {
+    const input = document.getElementById('liveGeoProbeInput');
+    const target = (input.value || '').trim();
+    if (!target) return;
+
+    const feedbackEl = document.getElementById('mapProbeFeedback');
+    if (feedbackEl) feedbackEl.textContent = `Resolving & Geocoding '${target}'...`;
+
+    fetch('/deanonymization/api/geo/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: target })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.lat && data.lon) {
+          if (feedbackEl) feedbackEl.textContent = `Located: ${data.city}, ${data.country} (${data.ip})`;
+
+          // Fly smoothly to the pinpoint location on Mapbox
+          threatMap.flyTo({
+            center: [data.lon, data.lat],
+            zoom: 6.5,
+            pitch: 35,
+            essential: true
+          });
+
+          // Drop an active crosshair marker
+          const probeEl = document.createElement('div');
+          probeEl.className = 'mapbox-tactical-marker marker-critical';
+          probeEl.innerHTML = '<i class="fas fa-crosshairs" style="font-size:11px; color:#fff;"></i>';
+
+          const popup = new mapboxgl.Popup({ offset: 15 }).setHTML(`
+            <div style="font-family:'Inter', sans-serif;">
+              <div style="font-family:'IBM Plex Mono', monospace; font-size:9px; font-weight:700; color:#38bdf8; margin-bottom:4px;">
+                // PROBE HIT: REAL-TIME RESOLUTION
+              </div>
+              <div style="font-size:13px; font-weight:700; color:#fff; margin-bottom:4px;">
+                ${data.query}
+              </div>
+              <div style="font-family:'IBM Plex Mono', monospace; font-size:11px; color:#fbbf24; margin-bottom:6px;">
+                ${data.ip} &mdash; ${data.city}, ${data.country}
+              </div>
+              <div style="font-size:11px; color:#94a3b8; line-height:1.4;">
+                <div><strong>ISP:</strong> ${data.isp || 'N/A'}</div>
+                <div><strong>ASN:</strong> ${data.asn || 'N/A'}</div>
+                <div><strong>Coordinates:</strong> ${data.lat}, ${data.lon}</div>
+              </div>
+            </div>
+          `);
+
+          new mapboxgl.Marker(probeEl)
+            .setLngLat([data.lon, data.lat])
+            .setPopup(popup)
+            .addTo(threatMap)
+            .togglePopup();
+
+        } else {
+          if (feedbackEl) feedbackEl.textContent = `Error: ${data.error || 'Lookup failed'}`;
+        }
+      })
+      .catch(err => {
+        if (feedbackEl) feedbackEl.textContent = 'API Error';
+        console.error('Geo probe error:', err);
+      });
+  }
+
+  // Quick helper to fly map from feed item
+  function locateAndFlyIP(ip, lat, lon, title) {
+    if (!threatMap || !lat || !lon) return;
+    threatMap.flyTo({
+      center: [lon, lat],
+      zoom: 6.0,
+      pitch: 30,
+      essential: true
+    });
+  }
+
+  // Helper from Roster table
+  function queryAndFlyIP(ip, alias) {
+    const probeInput = document.getElementById('liveGeoProbeInput');
+    if (probeInput) probeInput.value = ip;
+    runLiveGeoProbe();
+  }
+
+  // ── 6. Filter Ingestion Stream ─────────────────────────────────────────
+  function filterFeedStream(category, btn) {
+    $('.feed-filter-pill').removeClass('active');
+    $(btn).addClass('active');
+
+    const c2Items = document.querySelectorAll('.feed-item-c2');
+    const cveItems = document.querySelectorAll('.feed-item-cve');
+
+    if (category === 'ALL') {
+      c2Items.forEach(el => el.style.display = 'block');
+      cveItems.forEach(el => el.style.display = 'block');
+    } else if (category === 'C2') {
+      c2Items.forEach(el => el.style.display = 'block');
+      cveItems.forEach(el => el.style.display = 'none');
+    } else if (category === 'CVE') {
+      c2Items.forEach(el => el.style.display = 'none');
+      cveItems.forEach(el => el.style.display = 'block');
+    } else if (category === 'TOR') {
+      c2Items.forEach(el => el.style.display = 'block');
+      cveItems.forEach(el => el.style.display = 'none');
+    }
+  }
+
+  // ── 7. Filter Roster Table ─────────────────────────────────────────────
+  function filterRosterTable() {
+    const input = document.getElementById('rosterSearchFilter');
+    const term = (input.value || '').toLowerCase();
+    const rows = document.querySelectorAll('#actorRosterTable tbody tr');
+
+    rows.forEach(r => {
+      const alias = r.getAttribute('data-alias') || '';
+      const text = r.textContent.toLowerCase();
+      if (text.includes(term) || alias.includes(term)) {
+        r.style.display = '';
+      } else {
+        r.style.display = 'none';
+      }
+    });
+  }
+
+  // ── 8. Rapid Tor Misconfiguration Auditor Execution ────────────────────
+  function runRapidAudit() {
+    const url = document.getElementById('rapidAuditInput').value.trim();
+    if (!url) return;
+
+    const term = document.getElementById('rapidAuditTerminal');
+    const btn = document.getElementById('rapidAuditBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> PROBING';
+
+    term.innerHTML = `<div class="terminal-line text-cyan">[+] Initiating multi-vector audit against '${url}'...</div>`;
+
+    setTimeout(() => {
+      term.innerHTML += `<div class="terminal-line text-dimmer">[>] Probing /server-status, /server-info, /.git/HEAD, TLS certificates...</div>`;
+    }, 400);
+
+    fetch('/deanonymization/api/quick_scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ onion_url: url })
+    })
+      .then(res => res.json())
+      .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play" style="font-size:10px;"></i> PROBE';
+
+        if (data.success && data.audit) {
+          const audit = data.audit;
+          const orig = audit.origin_attribution || {};
+
+          let output = `<div class="terminal-line text-green">[✓] Scan completed in 1.4s. Findings: ${audit.findings_count} exposed vectors.</div>`;
+
+          if (orig.unmasked) {
+            output += `<div class="terminal-line alert"><strong>[!] UNMASKED ORIGIN: ${orig.origin_ip}</strong> (${orig.clearnet_hostname || 'No Hostname'})</div>`;
+            output += `<div class="terminal-line warning">[!] Location: ${orig.location || 'Unknown'} | ISP: ${orig.isp || 'N/A'}</div>`;
+            output += `<div class="terminal-line text-green">[+] Attribution Confidence: ${orig.confidence || 90}% (Method: ${orig.method || 'Status leak'})</div>`;
+
+            // If coordinates available, fly to on Mapbox
+            if (data.geo && data.geo.lat && data.geo.lon) {
+              output += `<div class="terminal-line text-cyan">[+] Plotted origin node on Mapbox theater [${data.geo.lat}, ${data.geo.lon}].</div>`;
+              threatMap.flyTo({
+                center: [data.geo.lon, data.geo.lat],
+                zoom: 6.0,
+                pitch: 30,
+                essential: true
+              });
+            }
+          } else {
+            output += `<div class="terminal-line text-dimmer">[-] Target hardened or origin obscured behind Tor relay.</div>`;
+          }
+
+          term.innerHTML += output;
+          term.scrollTop = term.scrollHeight;
+
+          // Reload points on map
+          loadGeospatialPoints();
+        }
+      })
+      .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play"></i> PROBE';
+        term.innerHTML += `<div class="terminal-line alert">[!] Audit request error: ${err}</div>`;
+      });
+  }
+
+  function auditSpecificTarget(alias, onion) {
+    const input = document.getElementById('rapidAuditInput');
+    if (input) {
+      input.value = onion || alias;
+      runRapidAudit();
+      input.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+
+  // Hook for top HUD sync button
+  window.refreshDashboardFeeds = function () {
+    loadGeospatialPoints();
+    fetch('/deanonymization/api/feeds/live?limit=20')
+      .then(res => res.json())
+      .then(data => {
+        if (data.indicators && data.advisories) {
+          // Update counters
+          const iocEl = document.getElementById('metricLiveIocCount');
+          if (iocEl && data.stats) iocEl.textContent = data.stats.total_indicators;
+          const advEl = document.getElementById('metricLiveAdvCount');
+          if (advEl && data.stats) advEl.textContent = data.stats.total_advisories;
+        }
+      });
+  };
+
+  // ── 9. Initialize Everything on Document Ready ─────────────────────────
+  $(document).ready(function () {
+    initMapboxTheater();
+  });
+</script>
+{% endblock %}

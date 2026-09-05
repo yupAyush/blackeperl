@@ -1,0 +1,9 @@
+[submodule "bin/trackers/yara/ail-yara-rules"]
+	path = bin/trackers/yara/ail-yara-rules
+	url = https://github.com/ail-project/ail-yara-rules.git
+[submodule "files/misp-taxonomies"]
+	path = files/misp-taxonomies
+	url = https://github.com/MISP/misp-taxonomies.git
+[submodule "files/misp-galaxy"]
+	path = files/misp-galaxy
+	url = https://github.com/MISP/misp-galaxy.git

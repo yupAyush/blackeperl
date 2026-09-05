@@ -1,0 +1,1599 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  {% block title_tag %}<title>De-anonymization — Null Anonymity</title>{% endblock %}
+  <meta name="description"
+    content="Null Anonymity — threat actor de-anonymization, IP geolocation, Tor origin attribution and stylometry console.">
+
+  <!-- Bootstrap 4 CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+  <!-- Font Awesome 6 Pro/Free CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Google Fonts: Inter & IBM Plex Mono / JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+
+  <!-- Mapbox GL JS CSS -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+
+  <style>
+    /* ── Null Anonymity console design system (light) ──────────────────────────────────────── */
+    :root {
+      /* Reference console palette */
+      --page:      #F3F4F5;
+      --panel:     #FFFFFF;
+      --band:      #EAEBED;
+      --band-2:    #F7F8F8;
+      --line:      #D3D6D9;
+      --line-soft: #E5E7E9;
+      --text:      #1A1D21;
+      --muted:     #565C63;
+      --faint:     #7B828A;
+      --accent:      #1F4E79;
+      --accent-dark: #173C5D;
+      --alert:       #9B2C22;
+      --ok:          #2C6049;
+      --wait:        #6B5A1E;
+
+      /* Existing rules address these names; remapped onto the light palette */
+      --bg-canvas: var(--page);
+      --bg-sidebar: var(--panel);
+      --bg-panel: var(--panel);
+      --bg-panel-hover: var(--band-2);
+      --bg-inset: var(--band-2);
+      --bg-input: var(--panel);
+
+      --border-panel: var(--line);
+      --border-subtle: var(--line-soft);
+      --border-focus: var(--accent);
+
+      --status-critical: var(--alert);
+      --status-critical-bg: var(--band-2);
+      --status-warning: var(--wait);
+      --status-warning-bg: var(--band-2);
+      --status-info: var(--muted);
+      --status-info-bg: var(--band-2);
+      --status-cyan: var(--accent);
+      --status-cyan-bg: var(--band-2);
+      --status-success: var(--ok);
+      --status-success-bg: var(--band-2);
+
+      --text-main: var(--text);
+      --text-secondary: var(--muted);
+      --text-muted: var(--faint);
+      --text-dim: #A6ACB2;
+
+      --bg-primary: var(--panel);
+      --border: var(--line);
+      --accent-blue: var(--accent);
+      --accent-green: var(--ok);
+      --accent-red: var(--alert);
+      --text-primary: var(--text);
+
+      --sidebar-w: 224px;
+      --hud-h: 76px;
+      --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+      --font-sans: 'IBM Plex Sans', -apple-system, 'Segoe UI', Arial, sans-serif;
+    }
+
+    /* ── Subpage Legacy Compatibility Classes (Null Anonymity Themed) ── */
+    .suite-strip {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+    }
+
+    .suite-strip h2 {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #1A1D21;
+      margin-bottom: 3px;
+      letter-spacing: -0.01em;
+    }
+
+    .suite-strip p {
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      margin: 0;
+    }
+
+    .bp-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .bp-card-header {
+      background: #0b0f17;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 10px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .bp-card-body {
+      padding: 16px;
+    }
+
+    .btn-bp {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 11.5px;
+      font-weight: 600;
+      border-radius: 3px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.12s ease;
+      font-family: var(--font-mono);
+      border: 1px solid transparent;
+    }
+
+    .btn-bp-primary {
+      background: #ffffff;
+      color: #000000;
+      border-color: #1A1D21;
+    }
+
+    .btn-bp-primary:hover {
+      background: #cccccc;
+      color: #000000;
+      text-decoration: none;
+    }
+
+    .btn-bp-ghost {
+      background: #0e131d;
+      border-color: var(--border-panel);
+      color: var(--text-secondary);
+    }
+
+    .btn-bp-ghost:hover {
+      background: #141b29;
+      color: #1A1D21;
+      text-decoration: none;
+    }
+
+    .bp-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 2px 7px;
+      font-size: 10.5px;
+      font-weight: 600;
+      border-radius: 2px;
+      font-family: var(--font-mono);
+    }
+
+    .bp-badge.neutral {
+      background: #101622;
+      border: 1px solid #1c2637;
+      color: #94a3b8;
+    }
+
+    .bp-badge.critical {
+      background: rgba(255, 255, 255, 0.10);
+      color: #1A1D21;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .bp-badge.high {
+      background: rgba(255, 255, 255, 0.07);
+      color: #cccccc;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .bp-badge.medium {
+      background: rgba(255, 255, 255, 0.05);
+      color: #999999;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .bp-badge.success {
+      background: rgba(255, 255, 255, 0.06);
+      color: #bbbbbb;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .bp-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .bp-table th {
+      background: #090c13;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 9px 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .bp-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    .bp-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 12.5px;
+      line-height: 1.45;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      letter-spacing: -0.01em;
+    }
+
+    /* ── Persistent Classification Stripe ────────────────────────── */
+    .classification-banner {
+      background: #0c0c0c;
+      border-bottom: 1px solid #222222;
+      padding: 3px 18px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: #999999;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      text-transform: uppercase;
+      user-select: none;
+      z-index: 1100;
+      position: relative;
+    }
+
+    .classification-banner .class-center {
+      color: #cccccc;
+    }
+
+    .classification-banner .system-id {
+      color: #666666;
+    }
+
+    /* ── App Layout Shell ────────────────────────────────────────── */
+    .app-shell {
+      display: flex;
+      min-height: calc(100vh - 24px);
+      width: 100%;
+    }
+
+    /* ── Left Command Rail (Sidebar) ─────────────────────────────── */
+    .app-sidebar {
+      width: var(--sidebar-w);
+      background-color: var(--bg-sidebar);
+      border-right: 1px solid var(--border-panel);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 0 18px;
+      position: fixed;
+      top: 24px;
+      bottom: 0;
+      left: 0;
+      z-index: 1000;
+    }
+
+    .brand-mark {
+      width: 40px;
+      height: 40px;
+      border-radius: 4px;
+      background: #181818;
+      border: 1px solid #333333;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #cccccc;
+      font-size: 18px;
+      margin-bottom: 24px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .brand-mark:hover {
+      background: #222222;
+      border-color: #555555;
+      color: #1A1D21;
+      text-decoration: none;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+    }
+
+    .nav-icons {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      width: 100%;
+      align-items: center;
+      flex: 1;
+    }
+
+    .nav-icon-link {
+      width: 44px;
+      height: 44px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      font-size: 15px;
+      text-decoration: none;
+      transition: all 0.12s ease;
+      position: relative;
+      border: 1px solid transparent;
+    }
+
+    .nav-icon-link:hover {
+      color: #1A1D21;
+      background: #121826;
+      border-color: #1e283c;
+      text-decoration: none;
+    }
+
+    .nav-icon-link.active {
+      color: #1A1D21;
+      background: #1a1a1a;
+      border-color: #333333;
+      box-shadow: inset 0 0 8px rgba(255, 255, 255, 0.06);
+    }
+
+    .nav-icon-link.active::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 3px;
+      background: #ffffff;
+      border-radius: 0 2px 2px 0;
+    }
+
+    .sidebar-bottom {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: center;
+      width: 100%;
+    }
+
+    /* ── Main Canvas Wrapper ─────────────────────────────────────── */
+    .app-main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: calc(100vh - 24px);
+    }
+
+    /* ── Top HUD Navigation ──────────────────────────────────────── */
+    .app-hud {
+      min-height: var(--hud-h);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border-panel);
+      background: rgba(11, 14, 21, 0.95);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 500;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .hud-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .hud-title-block {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hud-system-title {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #1A1D21;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-system-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .hud-telemetry-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--bg-inset);
+      border: 1px solid var(--border-panel);
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .telemetry-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .telemetry-label {
+      color: var(--text-dim);
+      text-transform: uppercase;
+      font-size: 10px;
+    }
+
+    .telemetry-val {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    .telemetry-pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #cccccc;
+      box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+      animation: pulseGreen 2s infinite;
+    }
+
+    @keyframes pulseGreen {
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.4;
+        transform: scale(0.85);
+      }
+    }
+
+    .hud-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .hud-search-bar {
+      position: relative;
+      width: 260px;
+    }
+
+    .hud-search-bar input {
+      width: 100%;
+      height: 34px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      padding: 0 42px 0 32px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .hud-search-bar input:focus {
+      border-color: var(--border-focus);
+      background: #0d121c;
+    }
+
+    .hud-search-bar i.search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 11px;
+    }
+
+    .hud-search-bar .kbd-shortcut {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      padding: 1px 5px;
+      background: #161d2b;
+      border: 1px solid #28354c;
+      color: #94a3b8;
+      border-radius: 3px;
+    }
+
+    .hud-btn {
+      height: 34px;
+      padding: 0 14px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+
+    .hud-btn-primary {
+      background: #ffffff;
+      color: #000000;
+      border-color: #1A1D21;
+    }
+
+    .hud-btn-primary:hover {
+      background: #cccccc;
+      color: #000000;
+      text-decoration: none;
+    }
+
+    .hud-btn-ghost {
+      background: var(--bg-inset);
+      border-color: var(--border-panel);
+      color: var(--text-secondary);
+    }
+
+    .hud-btn-ghost:hover {
+      background: #121826;
+      border-color: #2a374e;
+      color: #1A1D21;
+      text-decoration: none;
+    }
+
+    /* ── Content Canvas ─────────────────────────────────────────── */
+    .content-canvas {
+      padding: 20px 24px 40px;
+      flex: 1;
+    }
+
+    /* ── Null Anonymity Panel Components ───────────────────────────────── */
+    .command-panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      position: relative;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .command-panel-header {
+      background: #0b0f17;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 42px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .panel-header-title {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .panel-header-title .prefix {
+      color: #666666;
+    }
+
+    .command-panel-body {
+      padding: 16px;
+    }
+
+    /* ── Tactical Metric Cards ───────────────────────────────────── */
+    .metric-card-dense {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-panel);
+      border-radius: 4px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 105px;
+      position: relative;
+      transition: border-color 0.15s ease;
+    }
+
+    .metric-card-dense:hover {
+      border-color: #3a3a3a;
+    }
+
+    .metric-top-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .metric-title {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .metric-value-huge {
+      font-family: var(--font-mono);
+      font-size: 1.85rem;
+      font-weight: 700;
+      color: #1A1D21;
+      letter-spacing: -0.02em;
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+
+    .metric-subtext {
+      font-size: 11px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* ── Tactical Status Badges ──────────────────────────────────── */
+    .tactical-pill {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 2px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pill-critical {
+      background: rgba(255, 255, 255, 0.10);
+      color: #1A1D21;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+
+    .pill-warning {
+      background: rgba(255, 255, 255, 0.07);
+      color: #cccccc;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .pill-info {
+      background: rgba(255, 255, 255, 0.05);
+      color: #aaaaaa;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .pill-cyan {
+      background: rgba(255, 255, 255, 0.05);
+      color: #bbbbbb;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .pill-success {
+      background: rgba(255, 255, 255, 0.06);
+      color: #cccccc;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+    }
+
+    .pill-neutral {
+      background: rgba(255, 255, 255, 0.04);
+      color: #999999;
+      border: 1px solid rgba(255, 255, 255, 0.10);
+    }
+
+    /* ── Tactical Tables ─────────────────────────────────────────── */
+    .tactical-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .tactical-table th {
+      background: #090c13;
+      border-bottom: 1px solid var(--border-panel);
+      padding: 9px 12px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-weight: 600;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .tactical-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      color: var(--text-main);
+      vertical-align: middle;
+    }
+
+    .tactical-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* ── General Utilities ───────────────────────────────────────── */
+    .mono {
+      font-family: var(--font-mono);
+    }
+
+    .text-dimmer {
+      color: var(--text-muted);
+    }
+
+    .text-cyan {
+      color: #cccccc !important;
+    }
+
+    .text-amber {
+      color: #bbbbbb !important;
+    }
+
+    .text-red {
+      color: #ffffff !important;
+    }
+
+    .text-green {
+      color: #cccccc !important;
+    }
+
+    /* Mapbox custom tactical markers */
+    .mapbox-tactical-marker {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.15s ease;
+    }
+
+    .mapbox-tactical-marker.marker-critical {
+      background: #ffffff;
+      box-shadow: 0 0 14px rgba(255, 255, 255, 0.6);
+      border: 2px solid #000000;
+    }
+
+    .mapbox-tactical-marker.marker-warning {
+      background: #bbbbbb;
+      box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+      border: 2px solid #333333;
+    }
+
+    .mapbox-tactical-marker.marker-c2 {
+      background: #888888;
+      box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+      border: 2px solid #aaaaaa;
+    }
+
+    .mapbox-tactical-marker::after {
+      content: '';
+      position: absolute;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      opacity: 0.5;
+      animation: radarPulse 2.5s infinite;
+    }
+
+    @keyframes radarPulse {
+      0% {
+        transform: scale(0.6);
+        opacity: 0.8;
+      }
+
+      100% {
+        transform: scale(1.8);
+        opacity: 0;
+      }
+    }
+
+    /* Mapbox Popup Overrides */
+    .mapboxgl-popup-content {
+      background: #111111 !important;
+      border: 1px solid #2a2a2a !important;
+      border-radius: 4px !important;
+      color: #e8e8e8 !important;
+      padding: 12px 16px !important;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.8) !important;
+      font-family: var(--font-sans) !important;
+      max-width: 320px !important;
+    }
+
+    .mapboxgl-popup-tip {
+      border-top-color: #111111 !important;
+      border-bottom-color: #111111 !important;
+    }
+
+    .mapboxgl-popup-close-button {
+      color: #94a3b8 !important;
+      font-size: 16px !important;
+      padding: 4px 8px !important;
+    }
+
+    .mapboxgl-popup-close-button:hover {
+      color: #ffffff !important;
+      background: transparent !important;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #0a0a0a;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #2a2a2a;
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3a3a3a;
+    }
+
+    @media (max-width: 992px) {
+      .app-sidebar {
+        width: 52px;
+      }
+
+      .app-main {
+        margin-left: 52px;
+      }
+
+      .content-canvas {
+        padding: 14px;
+      }
+
+      .hud-search-bar {
+        width: 180px;
+      }
+    }
+
+    /* ══════════════════════════════════════════════════════════════════
+       LIGHT CONSOLE OVERRIDES
+       The rules above were written for the dark command-theater skin and
+       hard-code near-black surfaces and white text. Everything below
+       re-points those to the reference console palette. Kept as one block
+       at the end of the sheet so it wins on source order.
+       ══════════════════════════════════════════════════════════════════ */
+
+    body {
+      background: var(--page);
+      color: var(--text);
+      font-size: 13px;
+      letter-spacing: 0;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Classification stripe ─────────────────────────────────────── */
+    .classification-banner {
+      background: var(--band) !important;
+      border-bottom: 1px solid var(--line) !important;
+      color: var(--muted) !important;
+      padding: 6px 18px !important;
+      font-size: 11px !important;
+      font-weight: 500 !important;
+      letter-spacing: 0.02em !important;
+      text-transform: none !important;
+    }
+    .classification-banner .class-center { color: var(--text) !important; font-weight: 600; }
+    .classification-banner .system-id,
+    .classification-banner .text-amber { color: var(--muted) !important; }
+
+    /* ── Left rail ─────────────────────────────────────────────────── */
+    .app-sidebar {
+      background: var(--panel) !important;
+      border-right: 1px solid var(--line) !important;
+      align-items: stretch !important;
+      padding: 0 !important;
+    }
+    .brand-mark {
+      display: flex !important; align-items: center; gap: 10px;
+      width: auto !important; height: auto !important;
+      padding: 16px 16px 15px !important;
+      margin: 0 !important;
+      background: transparent !important;
+      border: none !important;
+      border-bottom: 1px solid var(--line-soft) !important;
+      border-radius: 0 !important;
+      color: var(--text) !important;
+      font-size: 15px !important;
+    }
+    .brand-mark:hover { background: transparent !important; }
+    .brand-seal { flex: none; }
+    .brand-text .brand-name {
+      font-size: 15px; font-weight: 600; line-height: 1.15;
+      color: var(--text); font-family: var(--font-sans);
+    }
+    .brand-text .brand-org {
+      font-size: 11px; color: var(--faint); line-height: 1.35; margin-top: 1px;
+      font-family: var(--font-sans); letter-spacing: 0;
+    }
+
+    .nav-icons {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 0 !important;
+      padding: 10px 8px !important;
+      flex: 1;
+      overflow-y: auto;
+    }
+    .nav-group-label {
+      font-size: 11px; color: var(--faint); padding: 12px 9px 5px;
+      font-family: var(--font-sans); letter-spacing: 0; text-transform: none;
+    }
+    .nav-group-label:first-child { padding-top: 2px; }
+    .nav-icon-link {
+      display: flex !important; align-items: center; gap: 9px;
+      width: 100% !important; height: auto !important;
+      padding: 7px 9px !important;
+      margin: 0 !important;
+      border: none !important;
+      border-left: 2px solid transparent !important;
+      border-radius: 0 !important;
+      background: transparent !important;
+      color: var(--muted) !important;
+      font-size: 13px !important;
+      font-family: var(--font-sans);
+      text-align: left;
+      letter-spacing: 0;
+    }
+    .nav-icon-link i { width: 15px; text-align: center; opacity: .6; font-size: 13px !important; }
+    .nav-icon-link:hover {
+      background: var(--band-2) !important;
+      color: var(--text) !important;
+      border-left-color: transparent !important;
+    }
+    .nav-icon-link.active {
+      background: var(--band-2) !important;
+      color: var(--text) !important;
+      font-weight: 500;
+      border-left-color: var(--accent) !important;
+    }
+    .nav-icon-link.active::before,
+    .nav-icon-link::before,
+    .nav-icon-link::after { display: none !important; }
+    .sidebar-bottom {
+      flex-direction: column !important;
+      align-items: stretch !important;
+      gap: 0 !important;
+      padding: 10px 8px !important;
+      border-top: 1px solid var(--line-soft);
+      margin: 0 !important;
+    }
+    .rail-officer {
+      border-top: 1px solid var(--line-soft);
+      padding: 11px 16px;
+      display: flex; align-items: center; gap: 9px;
+    }
+    .rail-officer-avatar {
+      width: 28px; height: 28px; flex: none; border-radius: 2px;
+      background: var(--band); border: 1px solid var(--line);
+      display: grid; place-items: center;
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      font-family: var(--font-sans);
+    }
+    .rail-officer-name { font-size: 13px; line-height: 1.2; color: var(--text); font-family: var(--font-sans); }
+    .rail-officer-role { font-size: 11px; color: var(--faint); font-family: var(--font-sans); }
+
+    /* ── Top HUD ───────────────────────────────────────────────────── */
+    .app-hud {
+      background: var(--page) !important;
+      border-bottom: 1px solid var(--line) !important;
+      box-shadow: none !important;
+    }
+    .hud-system-title {
+      color: var(--text) !important;
+      font-family: var(--font-sans) !important;
+      font-size: 20px !important;
+      font-weight: 600 !important;
+      letter-spacing: -0.015em !important;
+      text-transform: none !important;
+    }
+    .hud-system-title .text-cyan { color: var(--text) !important; font-weight: 600; }
+    .hud-system-subtitle {
+      color: var(--faint) !important;
+      font-family: var(--font-sans) !important;
+      font-size: 11px !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+    }
+    .hud-telemetry-group { border-color: var(--line) !important; background: var(--panel) !important; }
+    .telemetry-item { border-color: var(--line-soft) !important; }
+    .telemetry-label { color: var(--faint) !important; letter-spacing: 0 !important; }
+    .telemetry-val { color: var(--text) !important; }
+    .telemetry-val.text-green { color: var(--ok) !important; }
+    .telemetry-val.text-cyan { color: var(--accent) !important; }
+    .telemetry-pulse-dot { background: var(--ok) !important; box-shadow: none !important; }
+
+    .hud-search-bar {
+      background: var(--panel) !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 2px !important;
+    }
+    .hud-search-bar input {
+      color: var(--text) !important;
+      background: transparent !important;
+      font-family: var(--font-sans) !important;
+      font-size: 13px !important;
+    }
+    .hud-search-bar input::placeholder { color: var(--faint) !important; }
+    .hud-search-bar .search-icon { color: var(--faint) !important; }
+    .kbd-shortcut {
+      background: var(--band) !important;
+      border: 1px solid var(--line) !important;
+      color: var(--faint) !important;
+    }
+
+    .hud-btn {
+      border-radius: 2px !important;
+      font-family: var(--font-sans) !important;
+      font-size: 13px !important;
+      font-weight: 400 !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      padding: 7px 14px !important;
+    }
+    .hud-btn-ghost {
+      background: var(--panel) !important;
+      border: 1px solid var(--line) !important;
+      color: var(--text) !important;
+    }
+    .hud-btn-ghost:hover { border-color: var(--faint) !important; background: var(--band-2) !important; }
+    .hud-btn-primary {
+      background: var(--accent) !important;
+      border: 1px solid var(--accent) !important;
+      color: #fff !important;
+      font-weight: 500 !important;
+    }
+    .hud-btn-primary:hover { background: var(--accent-dark) !important; border-color: var(--accent-dark) !important; }
+
+    .content-canvas { background: var(--page) !important; }
+
+    /* ── Panels ────────────────────────────────────────────────────── */
+    .command-panel, .bp-card, .suite-strip, .metric-card, .panel, .data-panel {
+      background: var(--panel) !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 2px !important;
+      box-shadow: none !important;
+    }
+    .command-panel-header, .bp-card-header, .panel-header {
+      background: var(--panel) !important;
+      border-bottom: 1px solid var(--line-soft) !important;
+      color: var(--text) !important;
+      font-family: var(--font-sans) !important;
+      font-size: 15px !important;
+      font-weight: 600 !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      padding: 13px 20px !important;
+    }
+    .command-panel-body, .bp-card-body, .panel-body { color: var(--text) !important; }
+    .suite-strip h2 { color: var(--text) !important; font-family: var(--font-sans) !important; }
+    .suite-strip p { color: var(--faint) !important; }
+
+    /* Metric tiles across the top of the dashboard */
+    .metric-label, .metric-caption { color: var(--faint) !important; letter-spacing: 0 !important; }
+    .metric-value, .metric-number { color: var(--text) !important; }
+    .metric-card { padding: 17px 20px !important; }
+
+    /* ── Tables ────────────────────────────────────────────────────── */
+    .bp-table th, .data-table th, table th {
+      background: var(--band-2) !important;
+      border-bottom: 1px solid var(--line) !important;
+      color: var(--muted) !important;
+      font-family: var(--font-sans) !important;
+      font-size: 11px !important;
+      font-weight: 500 !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+    }
+    .bp-table td, .data-table td, table td {
+      color: var(--text) !important;
+      border-bottom: 1px solid var(--line-soft) !important;
+    }
+    .bp-table tr:hover td, .data-table tr:hover td { background: var(--band-2) !important; }
+
+    /* ── Badges and status chips ───────────────────────────────────── */
+    .bp-badge, .status-chip, .risk-badge {
+      border-radius: 2px !important;
+      font-family: var(--font-sans) !important;
+      font-size: 11px !important;
+      font-weight: 500 !important;
+      letter-spacing: 0 !important;
+    }
+    .bp-badge.neutral, .bp-badge.medium {
+      background: var(--band-2) !important; color: var(--muted) !important;
+      border: 1px solid var(--line) !important;
+    }
+    .bp-badge.critical {
+      background: var(--band-2) !important; color: var(--alert) !important;
+      border: 1px solid var(--line) !important;
+    }
+    .bp-badge.high {
+      background: var(--band-2) !important; color: var(--wait) !important;
+      border: 1px solid var(--line) !important;
+    }
+    .bp-badge.success {
+      background: var(--band-2) !important; color: var(--ok) !important;
+      border: 1px solid var(--line) !important;
+    }
+
+    /* ── Buttons ───────────────────────────────────────────────────── */
+    .btn-bp {
+      border-radius: 2px !important;
+      font-family: var(--font-sans) !important;
+      font-size: 13px !important;
+      font-weight: 400 !important;
+    }
+    .btn-bp-primary {
+      background: var(--accent) !important; color: #fff !important;
+      border-color: var(--accent) !important; font-weight: 500 !important;
+    }
+    .btn-bp-primary:hover { background: var(--accent-dark) !important; color: #fff !important; }
+    .btn-bp-ghost {
+      background: var(--panel) !important; border-color: var(--line) !important;
+      color: var(--text) !important;
+    }
+    .btn-bp-ghost:hover { background: var(--band-2) !important; color: var(--text) !important; border-color: var(--faint) !important; }
+
+    /* ── Inputs ────────────────────────────────────────────────────── */
+    input, textarea, select, .form-control {
+      background: var(--panel) !important;
+      border: 1px solid var(--line) !important;
+      color: var(--text) !important;
+      border-radius: 2px !important;
+    }
+    input::placeholder, textarea::placeholder { color: var(--faint) !important; }
+    input:focus, textarea:focus, select:focus, .form-control:focus {
+      border-color: var(--accent) !important; box-shadow: none !important;
+    }
+
+    /* ── Generic text-colour utilities used by the old dark skin ───── */
+    .text-cyan { color: var(--accent) !important; }
+    .text-green { color: var(--ok) !important; }
+    .text-amber { color: var(--wait) !important; }
+    .text-red { color: var(--alert) !important; }
+    .text-white { color: var(--text) !important; }
+    .text-muted, .text-dim { color: var(--faint) !important; }
+    a { color: var(--accent); }
+    a:hover { color: var(--accent-dark); }
+    hr { border-color: var(--line-soft) !important; }
+    code, pre, .mono { font-family: var(--font-mono); }
+
+    /* Scrollbars back to a light trough */
+    ::-webkit-scrollbar-track { background: var(--band-2) !important; }
+    ::-webkit-scrollbar-thumb { background: var(--line) !important; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--faint) !important; }
+
+    /* Tabs across the top of the case views */
+    .case-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--line); background: var(--panel); padding: 0 24px; position: sticky; top: 0; z-index: 20; }
+    .case-tab {
+      padding: 12px 16px; font-size: 13px; color: var(--muted);
+      border-bottom: 2px solid transparent; text-decoration: none;
+    }
+    .case-tab:hover { color: var(--text); text-decoration: none; }
+    .case-tab.active { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+
+    @media (max-width: 992px) {
+      .app-sidebar { position: static !important; width: auto !important; height: auto !important; flex-direction: row !important; }
+      .nav-icons { flex-direction: row !important; }
+      .nav-group-label, .rail-officer { display: none !important; }
+    }
+
+    /* ── Page-level surfaces from the subpages (dashboard, graph, dossier) ── */
+    .map-theater-panel, .feed-stream-panel, .terminal-box, .map-probe-box,
+    .legend-panel, .node-panel, .graph-canvas, .telemetry-deck-grid > * {
+      background: var(--panel) !important;
+      border-color: var(--line) !important;
+      color: var(--text) !important;
+      border-radius: 2px !important;
+      box-shadow: none !important;
+    }
+    .panel-header-title, .command-panel-header {
+      background: var(--panel) !important;
+      color: var(--text) !important;
+      border-bottom: 1px solid var(--line-soft) !important;
+      font-family: var(--font-sans) !important;
+      font-weight: 600 !important;
+      letter-spacing: 0 !important;
+    }
+    .map-control-bar, .feed-filter-bar {
+      background: var(--band-2) !important;
+      border-color: var(--line-soft) !important;
+    }
+    .map-layer-btn, .feed-filter-pill, .btn-feed-locate {
+      background: var(--panel) !important;
+      border: 1px solid var(--line) !important;
+      color: var(--muted) !important;
+      border-radius: 2px !important;
+      font-family: var(--font-sans) !important;
+      letter-spacing: 0 !important;
+    }
+    .map-layer-btn:hover, .feed-filter-pill:hover,
+    .btn-feed-locate:hover { background: var(--band-2) !important; color: var(--text) !important; }
+    .map-layer-btn.active, .feed-filter-pill.active {
+      background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important;
+    }
+    .map-hud-readout {
+      background: var(--band-2) !important; border-color: var(--line) !important; color: var(--muted) !important;
+    }
+    .feed-list-scroll { background: var(--panel) !important; }
+    .feed-entry-card {
+      background: var(--panel) !important;
+      border: 1px solid var(--line-soft) !important;
+      border-radius: 2px !important;
+    }
+    .feed-entry-card:hover { background: var(--band-2) !important; }
+    .feed-entry-card.critical-border { border-left: 3px solid var(--alert) !important; }
+    .feed-entry-card.warning-border  { border-left: 3px solid var(--wait) !important; }
+    .feed-entry-title { color: var(--text) !important; }
+    .feed-entry-desc  { color: var(--muted) !important; }
+    .feed-entry-meta  { color: var(--faint) !important; }
+    .feed-source-tag  {
+      background: var(--band-2) !important; border: 1px solid var(--line) !important;
+      color: var(--muted) !important;
+    }
+    .terminal-line { color: var(--muted) !important; }
+    .profile-avatar {
+      background: var(--band) !important; border: 1px solid var(--line) !important; color: var(--muted) !important;
+    }
+
+    /* Rail details that the dark skin centred / stacked differently */
+    .brand-text { display: flex; flex-direction: column; min-width: 0; }
+    .nav-icon-link { justify-content: flex-start !important; }
+    .brand-mark { justify-content: flex-start !important; }
+
+    /* ── Metric tiles, pills and tactical tables ───────────────────── */
+    .metric-card, .metric-card-dense {
+      background: var(--panel) !important;
+      border: 1px solid var(--line) !important;
+      border-radius: 2px !important;
+    }
+    .metric-title, .metric-label {
+      color: var(--faint) !important;
+      font-family: var(--font-sans) !important;
+      letter-spacing: 0 !important;
+      text-transform: none !important;
+      font-size: 12px !important;
+    }
+    .metric-value, .metric-value-huge {
+      color: var(--text) !important;
+      font-family: var(--font-sans) !important;
+      font-weight: 600 !important;
+    }
+    .metric-subtext, .metric-top-meta { color: var(--muted) !important; }
+
+    .tactical-pill {
+      border-radius: 2px !important;
+      font-family: var(--font-sans) !important;
+      font-size: 11px !important;
+      font-weight: 500 !important;
+      letter-spacing: 0 !important;
+      background: var(--band-2) !important;
+      border: 1px solid var(--line) !important;
+    }
+    .pill-critical { color: var(--alert) !important; }
+    .pill-warning  { color: var(--wait) !important; }
+    .pill-success  { color: var(--ok) !important; }
+    .pill-info, .pill-neutral, .pill-cyan { color: var(--muted) !important; }
+
+    .tactical-table th {
+      background: var(--band-2) !important; color: var(--muted) !important;
+      border-bottom: 1px solid var(--line) !important;
+      font-family: var(--font-sans) !important; text-transform: none !important;
+      letter-spacing: 0 !important;
+    }
+    .tactical-table td {
+      color: var(--text) !important; border-bottom: 1px solid var(--line-soft) !important;
+    }
+    .tactical-table tr:hover td { background: var(--band-2) !important; }
+
+    /* Links inside feed cards and tables inherit the console ink */
+    .feed-entry-title, .feed-entry-title a { color: var(--text) !important; }
+    .feed-entry-title a:hover { color: var(--accent) !important; }
+
+    /* Map canvas: neutral ground while no basemap key is configured */
+    #mapContainer, .map-theater-panel .mapboxgl-map, .mapboxgl-canvas-container {
+      background: var(--band) !important;
+    }
+  </style>
+  {% block extra_head %}{% endblock %}
+</head>
+
+<body>
+
+  <!-- ══ CLASSIFICATION BANNER ═══════════════════════════════════ -->
+  <div class="classification-banner">
+    <div>
+      <i class="fas fa-shield-halved text-amber mr-1"></i>
+      <span>// LAW ENFORCEMENT SENSITIVE // TLP:AMBER // ORCON //</span>
+    </div>
+    <div class="class-center d-none d-md-block">
+      OPERATION NULL ANONYMITY: DARK WEB DE-ANONYMIZATION SUITE
+    </div>
+    <div class="system-id">
+      SYS-NODE: NA-ALPHA-01 // UTC <span id="utcTimeTicker">--:--:--</span>
+    </div>
+  </div>
+
+  <div class="app-shell">
+    <!-- ══ LEFT COMMAND RAIL ═══════════════════════════════════════ -->
+    <aside class="app-sidebar">
+      <!-- Console seal -->
+      <a href="{{ url_for('deanonymization.dashboard') }}" class="brand-mark" title="Null Anonymity">
+        <svg class="brand-seal" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <rect x="2.5" y="2.5" width="23" height="23" stroke="#7B828A" />
+          <rect x="6.5" y="6.5" width="15" height="15" stroke="#B8BCC0" />
+          <path
+            d="M14 9.6a2.7 2.7 0 0 1 2.7 2.7v1.1h1v5.2h-7.4v-5.2h1v-1.1A2.7 2.7 0 0 1 14 9.6zm0 1.5a1.2 1.2 0 0 0-1.2 1.2v1.1h2.4v-1.1a1.2 1.2 0 0 0-1.2-1.2z"
+            fill="#565C63" />
+        </svg>
+        <span class="brand-text">
+          <span class="brand-name">Null Anonymity</span>
+          <span class="brand-org">Cyber Forensics Wing</span>
+        </span>
+      </a>
+
+      <nav class="nav-icons" aria-label="Casework navigation">
+        <div class="nav-group-label">Casework</div>
+        <a href="{{ url_for('deanonymization.dashboard') }}" class="nav-icon-link {% block nav_home %}{% endblock %}"
+          title="Command centre and geospatial attribution">
+          <i class="fas fa-layer-group"></i> Case board
+        </a>
+        <a href="{{ url_for('deanonymization.relationship_graph', actor_id='ACTOR-001-DARKSPECTRE') }}"
+          class="nav-icon-link {% block nav_graph %}{% endblock %}" title="Interactive relationship graph">
+          <i class="fas fa-project-diagram"></i> Relationship graph
+        </a>
+        <a href="{{ url_for('deanonymization.misconfig_scanner_page') }}"
+          class="nav-icon-link {% block nav_scanner %}{% endblock %}"
+          title="Tor hidden service misconfiguration auditor">
+          <i class="fas fa-spider"></i> Collection queue
+        </a>
+        <a href="{{ url_for('deanonymization.timeline_page') }}"
+          class="nav-icon-link {% block nav_timeline %}{% endblock %}" title="Temporal footprint and forensic timeline">
+          <i class="fas fa-clock-rotate-left"></i> Activity timeline
+        </a>
+
+        <div class="nav-group-label">Analysis</div>
+        <a href="{{ url_for('deanonymization.stylometry_page') }}"
+          class="nav-icon-link {% block nav_stylometry %}{% endblock %}" title="Stylometric persona attribution">
+          <i class="fas fa-fingerprint"></i> Stylometry
+        </a>
+
+        <div class="nav-group-label">Output</div>
+        <a href="{{ url_for('deanonymization.export_report') }}" target="_blank" class="nav-icon-link"
+          title="Printable intelligence dossier">
+          <i class="fas fa-file-shield"></i> Attribution report
+        </a>
+        <a href="{{ url_for('deanonymization.export_json') }}" class="nav-icon-link" title="Export raw JSON dossier">
+          <i class="fas fa-code"></i> Export JSON
+        </a>
+        <a href="{{ url_for('deanonymization.export_csv') }}" class="nav-icon-link" title="Export CSV evidence table">
+          <i class="fas fa-file-csv"></i> Export CSV
+        </a>
+      </nav>
+
+      <div class="rail-officer">
+        <div class="rail-officer-avatar">NA</div>
+        <div style="min-width:0">
+          <div class="rail-officer-name">Analyst console</div>
+          <div class="rail-officer-role">Cyber Cell</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══ MAIN CANVAS ════════════════════════════════════════════ -->
+    <main class="app-main">
+      <!-- Persistent Top HUD Navigation -->
+      <header class="app-hud">
+        <div class="hud-left">
+          <div class="hud-title-block">
+            <div class="hud-system-title">
+              <span class="text-cyan">NULL ANONYMITY //</span>
+              <span>{% block header_title %}COMMAND THEATER{% endblock %}</span>
+            </div>
+            <div class="hud-system-subtitle">
+              AUTONOMOUS DE-ANONYMIZATION & REAL-TIME ATTRIBUTION PLATFORM
+            </div>
+          </div>
+
+          <div class="hud-telemetry-group d-none d-lg-flex">
+            <div class="telemetry-item">
+              <span class="telemetry-pulse-dot"></span>
+              <span class="telemetry-label">INGESTION:</span>
+              <span class="telemetry-val text-green" id="telemetryStatus">ACTIVE (POLLING)</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">IOCs:</span>
+              <span class="telemetry-val" id="telemetryIocCount">--</span>
+            </div>
+            <div class="telemetry-item">
+              <span class="telemetry-label">MAP NODES:</span>
+              <span class="telemetry-val text-cyan" id="telemetryNodesCount">--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-right">
+          <!-- Global Target Search -->
+          <div class="hud-search-bar">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" id="globalTargetSearchInput" placeholder="Pivot: IP, Alias, .onion...">
+            <span class="kbd-shortcut">/</span>
+          </div>
+
+          <!-- Trigger Live Feed Sync Button -->
+          <button type="button" class="hud-btn hud-btn-ghost" id="hudSyncFeedsBtn" onclick="triggerFeedSync()"
+            title="Query Live Threat Feeds">
+            <i class="fas fa-arrows-rotate" id="syncFeedsIcon"></i>
+            <span class="d-none d-sm-inline">SYNC FEEDS</span>
+          </button>
+
+          <!-- Quick Action: Tor Audit -->
+          <a href="{{ url_for('deanonymization.misconfig_scanner_page') }}" class="hud-btn hud-btn-primary">
+            <i class="fas fa-radar"></i>
+            <span class="d-none d-sm-inline">NEW AUDIT</span>
+          </a>
+        </div>
+      </header>
+
+      <!-- Page Content Container -->
+      <!-- Case tab strip (reference layout) -->
+      {% set na_actor = na_actor_id | default('ACTOR-001-DARKSPECTRE') %}
+      <nav class="case-tabs" aria-label="Case sections">
+        <a class="case-tab {% block tab_overview %}{% endblock %}"
+           href="{{ url_for('deanonymization.dashboard') }}">Overview</a>
+        <a class="case-tab {% block tab_stylometry %}{% endblock %}"
+           href="{{ url_for('deanonymization.stylometry_page') }}">Stylometry</a>
+        <a class="case-tab {% block tab_dossier %}{% endblock %}"
+           href="{{ url_for('deanonymization.actor_profile', actor_id=na_actor) }}">Actor dossier</a>
+        <a class="case-tab {% block tab_graph %}{% endblock %}"
+           href="{{ url_for('deanonymization.relationship_graph', actor_id=na_actor) }}">Relationship graph</a>
+        <a class="case-tab {% block tab_evidence %}{% endblock %}"
+           href="{{ url_for('deanonymization.export_report') }}" target="_blank">Evidence and finding</a>
+      </nav>
+
+      <div class="content-canvas">
+        {% block page_content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+
+  <!-- ── Core CDN Libraries ─────────────────────────────────────── -->
+  <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.4/dist/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+  <!-- Mapbox GL JS -->
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+
+  <script>
+    // ── Live UTC Clock Ticker ──────────────────────────────────────────
+    function updateClock() {
+      const now = new Date();
+      const utcString = now.toUTCString().split(' ')[4] + ' UTC';
+      const tickerEl = document.getElementById('utcTimeTicker');
+      if (tickerEl) tickerEl.textContent = utcString;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ── Global Keyboard Shortcut (Slash / to focus search) ────────────
+    window.addEventListener('keydown', function (e) {
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        const searchInput = document.getElementById('globalTargetSearchInput');
+        if (searchInput) searchInput.focus();
+      }
+    });
+
+    // ── Live Feed Sync Handler ─────────────────────────────────────────
+    function triggerFeedSync() {
+      const icon = document.getElementById('syncFeedsIcon');
+      if (icon) icon.classList.add('fa-spin');
+
+      fetch('/deanonymization/api/feeds/sync', { method: 'POST' })
+        .then(res => res.json())
+        .then(data => {
+          if (icon) icon.classList.remove('fa-spin');
+          if (data.success) {
+            // Update telemetry
+            const iocCountEl = document.getElementById('telemetryIocCount');
+            if (iocCountEl && data.stats) iocCountEl.textContent = data.stats.total_indicators;
+
+            // If on dashboard, refresh map and stream
+            if (typeof window.refreshDashboardFeeds === 'function') {
+              window.refreshDashboardFeeds();
+            }
+          }
+        })
+        .catch(err => {
+          if (icon) icon.classList.remove('fa-spin');
+          console.error('Feed sync error:', err);
+        });
+    }
+
+    // Initial Telemetry Fetch
+    fetch('/deanonymization/api/feeds/live?limit=1')
+      .then(res => res.json())
+      .then(data => {
+        if (data.stats) {
+          const iocCountEl = document.getElementById('telemetryIocCount');
+          if (iocCountEl) iocCountEl.textContent = data.stats.total_indicators || 12;
+        }
+      })
+      .catch(() => { });
+  </script>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+
+</html>

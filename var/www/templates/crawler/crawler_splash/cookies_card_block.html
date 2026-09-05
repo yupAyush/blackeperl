@@ -1,0 +1,36 @@
+{% for dict_cookie in l_elem %}
+
+  {% if loop.index0 % 4 == 0 %}
+    <div class="card-deck mt-3">
+  {% endif %}
+
+      <div class="card">
+        <div class="card-header py-0">
+          <div class="d-flex flex-row-reverse">
+            <div>
+              <a class="btn btn-light" href="{{ url_for('crawler_splash.crawler_cookiejar_cookie_edit') }}?uuid={{dict_cookie['uuid']}}" style="font-size: 15px">
+                <i class="text-secondary fas fa-pencil-alt"></i>
+              </a>
+            </div>
+            <div>
+              <a class="btn btn-light" href="{{ url_for('crawler_splash.crawler_cookiejar_cookie_delete') }}?uuid={{dict_cookie['uuid']}}" style="font-size: 15px">
+                <i class="text-danger fas fa-trash-alt"></i>
+              </a>
+            </div>
+          </div>
+
+        </div>
+        <div class="card-body">
+          <pre>{{dict_cookie['data']}}</pre>
+        </div>
+      </div>
+
+  {% if loop.index0 % 4 == 3 %}
+    </div>
+  {% endif %}
+
+{% endfor %}
+
+{% if l_elem|length % 4 != 0 %}
+    </div>
+{% endif %}

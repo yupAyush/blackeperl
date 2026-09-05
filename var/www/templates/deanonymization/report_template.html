@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>DEANONYMIZATION INTELLIGENCE DOSSIER - {{ actor.primary_alias }}</title>
+  <link rel="icon" href="{{ url_for('static', filename='image/ail-icon.png') }}">
+  <link href="{{ url_for('static', filename='css/bootstrap4.min.css') }}" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/font-awesome.min.css') }}" rel="stylesheet">
+  <style>
+    body { background: #fff; color: #1f2937; font-family: "Helvetica Neue", Arial, sans-serif; padding: 40px; }
+    .report-header { border-bottom: 3px solid #111827; padding-bottom: 20px; margin-bottom: 30px; }
+    .classification-banner { background: #fef2f2; border: 1px solid #f87171; color: #991b1b; padding: 8px; text-align: center; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 25px; }
+    .section-title { font-size: 1.15rem; font-weight: 700; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; padding-bottom: 6px; margin-top: 25px; margin-bottom: 15px; color: #111827; }
+    .font-mono { font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .table-custom th { background: #f3f4f6; color: #374151; font-size: 0.85rem; border-top: none; }
+    .badge-score { font-size: 1.1rem; padding: 6px 12px; }
+    @media print {
+      body { padding: 0; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="no-print mb-4 d-flex justify-content-between align-items-center">
+    <div>
+      <a href="{{ url_for('deanonymization.actor_profile', actor_id=actor.actor_id) }}" class="btn btn-outline-secondary"><i class="fas fa-arrow-left"></i> Back to Dossier</a>
+    </div>
+    <div>
+      <button onclick="window.print();" class="btn btn-primary"><i class="fas fa-print mr-1"></i> Print / Save as PDF</button>
+    </div>
+  </div>
+
+  <div class="classification-banner">
+    LAW ENFORCEMENT SENSITIVE // TLP:AMBER // FOR OFFICIAL INVESTIGATIVE USE ONLY
+  </div>
+
+  <div class="report-header d-flex justify-content-between align-items-start">
+    <div>
+      <h2 class="font-weight-bold mb-1">DARK WEB THREAT ACTOR ATTRIBUTION REPORT</h2>
+      <p class="text-muted mb-0">Null Anonymity Intelligence Platform &bull; De-anonymization Reference: <strong>{{ actor.actor_id }}</strong></p>
+      <small class="text-muted">Generated: {{ now }} &bull; Source Network: Tor Hidden Services & Darknet Markets</small>
+    </div>
+    <div class="text-right">
+      <span class="badge badge-danger badge-score">{{ actor.risk_level }} RISK</span><br/>
+      <span class="badge badge-success badge-score mt-1">{{ actor.attribution_confidence }}% CONFIDENCE</span>
+    </div>
+  </div>
+
+  <!-- Executive Summary -->
+  <div class="section-title"><i class="fas fa-id-badge mr-1"></i> 1. Target Identity & Executive Summary</div>
+  <table class="table table-bordered table-sm mb-3">
+    <tbody>
+      <tr>
+        <th style="width: 25%;">Primary Operator Alias</th>
+        <td><strong>{{ actor.primary_alias }}</strong></td>
+        <th style="width: 20%;">Operational Status</th>
+        <td><span class="badge badge-secondary">{{ actor.status }}</span></td>
+      </tr>
+      <tr>
+        <th>Threat Category</th>
+        <td>{{ actor.category }}</td>
+        <th>First / Last Observed</th>
+        <td>{{ actor.first_seen }} / {{ actor.last_seen }}</td>
+      </tr>
+      <tr>
+        <th>Operational Summary</th>
+        <td colspan="3">{{ actor.summary }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Unmasked Clearnet Origin Infrastructure -->
+  <div class="section-title"><i class="fas fa-server mr-1"></i> 2. De-anonymized Origin Infrastructure</div>
+  <table class="table table-bordered table-custom table-sm">
+    <thead>
+      <tr>
+        <th>Tor Hidden Service</th>
+        <th>Unmasked Clearnet IP</th>
+        <th>Clearnet Hostname</th>
+        <th>Physical Location & ISP</th>
+        <th>De-anonymization Vector</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for infra in actor.associated_infrastructure %}
+      <tr>
+        <td class="font-mono">{{ infra.onion_domain }}</td>
+        <td class="font-mono font-weight-bold text-danger">{{ infra.origin_ip }}</td>
+        <td class="font-mono small">{{ infra.clearnet_hostname }}</td>
+        <td>{{ infra.location }} ({{ infra.isp }}, {{ infra.asn }})</td>
+        <td><span class="badge badge-light border">{{ infra.unmasking_method }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Cross-Marketplace Aliases -->
+  <div class="section-title"><i class="fas fa-users mr-1"></i> 3. Cross-Marketplace Identity Links</div>
+  <table class="table table-bordered table-custom table-sm">
+    <thead>
+      <tr>
+        <th>Platform / Forum</th>
+        <th>Pseudonym / Handle</th>
+        <th>Reputation / Feedback Tier</th>
+        <th>First Seen</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for alias in actor.aliases %}
+      <tr>
+        <td><strong>{{ alias.platform }}</strong></td>
+        <td class="font-mono font-weight-bold">{{ alias.handle }}</td>
+        <td>{{ alias.reputation_rep }}</td>
+        <td>{{ alias.first_seen }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Cryptographic & Financial Rail -->
+  <div class="section-title"><i class="fas fa-coins mr-1"></i> 4. Cryptographic Proofs & Cryptocurrency Addresses</div>
+  <div class="row">
+    <div class="col-6">
+      <h6 class="font-weight-bold">Cryptographic PGP Keyring</h6>
+      <table class="table table-bordered table-sm small">
+        {% for p in actor.pgp_keys %}
+        <tr>
+          <th>Key ID / Bit</th>
+          <td><code>{{ p.key_id }}</code> ({{ p.algorithm }} {{ p.bit_length }}bit)</td>
+        </tr>
+        <tr>
+          <th>Fingerprint</th>
+          <td class="font-mono">{{ p.fingerprint }}</td>
+        </tr>
+        <tr>
+          <th>UID Email</th>
+          <td>{{ p.uid_email }}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </div>
+    <div class="col-6">
+      <h6 class="font-weight-bold">Cryptocurrency Wallets</h6>
+      <table class="table table-bordered table-sm small">
+        <thead>
+          <tr>
+            <th>Currency</th>
+            <th>Address</th>
+            <th>USD Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for w in actor.crypto_wallets %}
+          <tr>
+            <td>{{ w.currency }}</td>
+            <td class="font-mono" style="word-break: break-all;">{{ w.address }}</td>
+            <td><strong>${{ "{:,.2f}".format(w.total_received_usd) }}</strong></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Stylometric & Behavioral Diurnal Analysis -->
+  <div class="section-title"><i class="fas fa-brain mr-1"></i> 5. Behavioral Profiling & Timezone Attribution</div>
+  <table class="table table-bordered table-sm">
+    <tbody>
+      <tr>
+        <th style="width: 30%;">Inferred Operational Base</th>
+        <td><strong>{{ diurnal.estimated_timezone_offset }} ({{ diurnal.probable_operational_regions }})</strong></td>
+      </tr>
+      <tr>
+        <th>Estimated Sleep Window</th>
+        <td>{{ diurnal.inferred_sleep_window_utc }}</td>
+      </tr>
+      <tr>
+        <th>Diurnal Sample Events</th>
+        <td>{{ diurnal.total_events_analyzed }} historical darknet timestamps analyzed</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Sign-off -->
+  <div class="mt-5 pt-4 border-top">
+    <div class="row text-muted small">
+      <div class="col-6">
+        <div><strong>Investigating Unit:</strong> Cyber Crime Intelligence Directorate</div>
+        <div><strong>Evidence Hash (SHA256):</strong> <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code></div>
+      </div>
+      <div class="col-6 text-right">
+        <div><strong>Verified By:</strong> Automated Null Anonymity Attribution Engine v3.2</div>
+        <div><strong>Status:</strong> ACTIONABLE INTELLIGENCE DOSSIER</div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

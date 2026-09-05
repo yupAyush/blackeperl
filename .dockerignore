@@ -1,0 +1,6 @@
+AILENV/
+**/__pycache__/
+*.pyc
+logs/*.log
+DATA_KVROCKS/
+DATA_DEANONYMIZATION.db

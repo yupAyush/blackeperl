@@ -1,0 +1,116 @@
+pyail
+pylacus
+pymisp>=2.4.144
+d4-pyclient>=0.1.6
+
+thehive4py<2.0
+git+https://github.com/MISP/PyTaxonomies
+git+https://github.com/MISP/PyMISPGalaxies
+
+# Core
+redis>4.4.4,<=7.4.1
+python-magic>0.4.15
+yara-python>4.0.2
+pyfaup-rs
+orjson
+
+# AIL Sync
+websockets>9.0
+
+# Hashlib
+crcmod
+mmh3>2.5
+xxhash>3.1.0
+
+# ZMQ
+zmq
+pyzmq>19.0.0
+
+
+# Tokeniser
+nltk>3.4.5
+textblob>=0.15.3
+
+# HTML
+html2text>=2020.1.16
+beautifulsoup4>4.8.2
+
+# PDF
+pymupdf
+pymupdf4llm
+
+# Crawler
+scrapy>2.0.0
+scrapy-splash>=0.7.2
+
+# Languages
+gcld3
+libretranslatepy
+picolang
+
+# Demoji
+git+https://github.com/ail-project/demoji
+
+#Graph
+numpy>1.18.1
+matplotlib>3.2.1
+networkx>2.4
+
+# ModuleInformation
+asciimatics>=1.11.0
+psutil>=5.7.0
+
+colorama>=0.4.4
+python-Levenshtein>=0.12.2
+
+# DomainClassifier
+pybgpranking
+DomainClassifier
+
+# Indexer
+meilisearch
+
+# LibInjection bindings
+#pylibinjection>=0.2.4
+
+#Others
+phonenumbers>8.12.1
+
+# Web
+flask>=2.3.3
+flask-login
+flask-sock
+bcrypt>3.1.6
+pyotp
+segno
+
+# Ail typo squatting
+ail_typo_squatting
+
+# OCR
+easyocr
+
+# Qrcode
+qreader
+pyzbar
+
+# Tests
+nose2>=0.12.0
+coverage>=5.5
+
+# # # #
+PySocks>=1.7.1
+pycountry>=20.7.3
+
+idna
+publicsuffixlist
+requests
+
+chardet
+
+##### Old packages
+# texttable
+#ASN lookup requirements
+#https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/adns-python/adns-python-1.2.1.tar.gz
+#https://github.com/trolldbois/python3-adns/archive/master.zip
+#https://github.com/trolldbois/python-cymru-services/archive/master.zip

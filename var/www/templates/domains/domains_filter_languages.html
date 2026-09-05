@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Show Domain — Null Anonymity</title>
+	<link rel="icon" href="{{ url_for('static', filename='image/ail-icon.png') }}">
+	<!-- Core CSS -->
+	<link href="{{ url_for('static', filename='css/bootstrap4.min.css') }}" rel="stylesheet">
+	<link href="{{ url_for('static', filename='css/font-awesome.min.css') }}" rel="stylesheet">
+	<!-- JS -->
+	<script src="{{ url_for('static', filename='js/jquery.js')}}"></script>
+  <script src="{{ url_for('static', filename='js/popper.min.js')}}"></script>
+  <script src="{{ url_for('static', filename='js/bootstrap4.min.js') }}"></script>
+
+  <style>
+    .card-columns {
+      column-count: 4;
+    }
+  </style>
+
+</head>
+<body>
+
+	{% include 'nav_bar.html' %}
+
+	<div class="container-fluid">
+		<div class="row">
+
+			{% include 'crawler/menu_sidebar.html' %}
+
+			<div class="col-12 col-lg-10" id="core_content">
+
+        <div class="row">
+          	<div class="col-12 col-lg-6">
+
+              {% include 'domains/block_languages_search.html' %}
+
+
+            </div>
+            <div class="col-12 col-xl-6">
+
+                <div class="my-3">
+                    {% include 'objects/image/block_blur_img_slider.html' %}
+                </div>
+
+            </div>
+        </div>
+
+
+        {% with l_dict_domains=l_dict_domains['list_elem'], bootstrap_label=bootstrap_label %}
+          {% include 'domains/card_img_domain.html' %}
+        {% endwith %}
+
+        <br>
+        <br>
+
+        {%if l_dict_domains['list_elem']%}
+          {% with page=l_dict_domains['page'], nb_page_max=l_dict_domains['nb_pages'],  nb_first_elem=l_dict_domains['nb_first_elem'], nb_last_elem=l_dict_domains['nb_last_elem'], nb_all_elem=l_dict_domains['nb_all_elem'] %}
+            {% set target_url=url_for('crawler_splash.domains_search_languages_get') + "?languages=" + ','.join(current_languages)%}
+            {%if domains_types %}
+              {% set target_url = target_url + '&domain_types=' + ','.join(domains_types)%}
+            {%endif%}
+            {% include 'pagination.html' %}
+  				{% endwith %}
+        {%endif%}
+
+
+			</div>
+		</div>
+	</div>
+</body>
+
+
+<script>
+  $(document).ready(function(){
+    $('#nav_title_domains_explorer').removeClass("text-muted");
+
+  });
+
+function toggle_sidebar(){
+	if($('#nav_menu').is(':visible')){
+		$('#nav_menu').hide();
+		$('#side_menu').removeClass('border-right')
+		$('#side_menu').removeClass('col-lg-2')
+		$('#core_content').removeClass('col-lg-10')
+	}else{
+		$('#nav_menu').show();
+		$('#side_menu').addClass('border-right')
+		$('#side_menu').addClass('col-lg-2')
+		$('#core_content').addClass('col-lg-10')
+	}
+}
+</script>
+
+</html>
